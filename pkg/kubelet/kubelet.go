@@ -2274,7 +2274,7 @@ func (kl *Kubelet) hasInsufficientfFreeResources(pods []*api.Pod) (bool, bool) {
 		return false, false
 	}
 	capacity := cadvisor.CapacityFromMachineInfo(info)
-	_, notFittingCPU, notFittingMemory := predicates.CheckPodsExceedingFreeResources(pods, capacity)
+	_, notFittingCPU, notFittingMemory, _ := predicates.CheckPodsExceedingFreeResources(pods, capacity)
 	return len(notFittingCPU) > 0, len(notFittingMemory) > 0
 }
 

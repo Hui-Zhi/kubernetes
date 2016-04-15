@@ -18,10 +18,11 @@ package predicates
 
 import "fmt"
 
-const (
-	podCountResourceName string = "PodCount"
-	cpuResourceName      string = "CPU"
-	memoryResoureceName  string = "Memory"
+var (
+	ErrExceededMaxPodNumber      = newInsufficientResourceError("PodCount")
+	ErrInsufficientFreeCPU       = newInsufficientResourceError("CPU")
+	ErrInsufficientFreeMemory    = newInsufficientResourceError("Memory")
+	ErrInsufficientFreeNvidiaGPU = newInsufficientResourceError("NvidiaGPU")
 )
 
 // InsufficientResourceError is an error type that indicates what kind of resource limit is
