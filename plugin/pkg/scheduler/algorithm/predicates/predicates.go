@@ -376,8 +376,9 @@ type ResourceFit struct {
 }
 
 type resourceRequest struct {
-	milliCPU  int64
-	memory    int64
+	milliCPU int64
+	memory   int64
+	// Needs to be changed.
 	nvidiaGPU int64
 }
 
@@ -425,6 +426,7 @@ func CheckPodsExceedingFreeResources(pods []*api.Pod, allocatable api.ResourceLi
 		memoryRequested += podRequest.memory
 		nvidiaGPURequested += podRequest.nvidiaGPU
 		fitting = append(fitting, pod)
+		glog.Infof("Pod: %v need nvidia GPU : %v , podRequest: %v", podName(pod), nvidiaGPURequested, podRequest.nvidiaGPU)
 	}
 
 	return
@@ -465,6 +467,10 @@ func (r *ResourceFit) PodFitsResources(pod *api.Pod, nodeName string, nodeInfo *
 	}
 	if len(exceedingNvidiaGPU) > 0 {
 		glog.V(10).Infof("Cannot schedule Pod %+v, because Node %v does not have sufficient Nvidia GPU", podName(pod), node)
+		return false, ErrInsufficientFreeNvidiaGPU
+	}
+	if len(exceedingNvidiaGPU) > 0 {
+		glog.V(10).Infof("Cannot schedule Pod %+v, because Node %v does not have sufficient NVIDIA GPU", podName(pod), node)
 		return false, ErrInsufficientFreeNvidiaGPU
 	}
 

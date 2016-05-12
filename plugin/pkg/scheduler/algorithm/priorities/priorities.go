@@ -52,7 +52,7 @@ func calculateScore(requested int64, capacity int64, node string) int {
 // As described in #11713, we use request instead of limit to deal with resource requirements.
 const defaultMilliCpuRequest int64 = 100             // 0.1 core
 const defaultMemoryRequest int64 = 200 * 1024 * 1024 // 200 MB
-const defaultNvidiaGPURequest int64 = 0              // 1 device
+const defaultNvidiaGPURequest int64 = 0
 
 // TODO: Consider setting default as a fixed fraction of machine capacity (take "capacity api.ResourceList"
 // as an additional argument here) rather than using constants
@@ -70,7 +70,7 @@ func getNonzeroRequests(requests *api.ResourceList) (int64, int64, int64) {
 	} else {
 		out_memory = requests.Memory().Value()
 	}
-
+	// Override if un-set, but not if explicitly set to zero
 	if (*requests.NvidiaGPU() == resource.Quantity{}) {
 		out_nvidiaGPU = defaultNvidiaGPURequest
 	} else {
@@ -114,7 +114,7 @@ func calculateResourceOccupancy(pod *api.Pod, node api.Node, pods []*api.Pod) sc
 		"%v -> %v: Least Requested Priority, Absolute/Requested: (%d, %d, %d) / (%d, %d, %d) Score: (%d, %d, %d)",
 		pod.Name, node.Name,
 		totalMilliCPU, totalMemory, totalNvidiaGPU,
-		capacityMilliCPU, capacityMemory, capacityMemory,
+		capacityMilliCPU, capacityMemory, capacityNvidiaGPU,
 		cpuScore, memoryScore, nvidiaGPUScore,
 	)
 

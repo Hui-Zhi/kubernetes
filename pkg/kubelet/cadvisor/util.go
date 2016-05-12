@@ -31,5 +31,6 @@ func CapacityFromMachineInfo(info *cadvisorApi.MachineInfo) api.ResourceList {
 			int64(info.MemoryCapacity),
 			resource.BinarySI),
 	}
+
 	return c
 }

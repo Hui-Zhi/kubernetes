@@ -33,6 +33,14 @@ func (self *ResourceList) Cpu() *resource.Quantity {
 	return &resource.Quantity{Format: resource.DecimalSI}
 }
 
+// Returns the GPU limit if specified.
+func (self *ResourceList) Gpu() *resource.Quantity {
+	if val, ok := (*self)[ResourceNvidiaGPU]; ok {
+		return &val
+	}
+	return &resource.Quantity{}
+}
+
 // Returns the Memory limit if specified.
 func (self *ResourceList) Memory() *resource.Quantity {
 	if val, ok := (*self)[ResourceMemory]; ok {
@@ -42,6 +50,14 @@ func (self *ResourceList) Memory() *resource.Quantity {
 }
 
 // Returns the NvidiaGPU number.
+func (self *ResourceList) NvidiaGPU() *resource.Quantity {
+	if val, ok := (*self)[ResourceNvidiaGPU]; ok {
+		return &val
+	}
+	return &resource.Quantity{}
+}
+
+// Returns the Memory limit if specified.
 func (self *ResourceList) NvidiaGPU() *resource.Quantity {
 	if val, ok := (*self)[ResourceNvidiaGPU]; ok {
 		return &val
