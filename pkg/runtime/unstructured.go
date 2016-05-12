@@ -17,10 +17,11 @@ limitations under the License.
 package runtime
 
 import (
-	"encoding/json"
+	gojson "encoding/json"
 	"io"
 
 	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/util/json"
 )
 
 // UnstructuredJSONScheme is capable of converting JSON data into the Unstructured
@@ -55,17 +56,13 @@ func (unstructuredJSONScheme) EncodeToStream(obj Object, w io.Writer, overrides 
 	case *Unstructured:
 		return json.NewEncoder(w).Encode(t.Object)
 	case *UnstructuredList:
-		type encodeList struct {
-			TypeMeta `json:",inline"`
-			Items    []map[string]interface{} `json:"items"`
-		}
-		eList := encodeList{
-			TypeMeta: t.TypeMeta,
-		}
+		var items []map[string]interface{}
 		for _, i := range t.Items {
-			eList.Items = append(eList.Items, i.Object)
+			items = append(items, i.Object)
 		}
-		return json.NewEncoder(w).Encode(eList)
+		t.Object["items"] = items
+		defer func() { delete(t.Object, "items") }()
+		return json.NewEncoder(w).Encode(t.Object)
 	case *Unknown:
 		// TODO: Unstructured needs to deal with ContentType.
 		_, err := w.Write(t.Raw)
@@ -77,7 +74,7 @@ func (unstructuredJSONScheme) EncodeToStream(obj Object, w io.Writer, overrides 
 
 func (s unstructuredJSONScheme) decode(data []byte) (Object, error) {
 	type detector struct {
-		Items json.RawMessage
+		Items gojson.RawMessage
 	}
 	var det detector
 	if err := json.Unmarshal(data, &det); err != nil {
@@ -112,25 +109,6 @@ func (unstructuredJSONScheme) decodeToUnstructured(data []byte, unstruct *Unstru
 		return err
 	}
 
-	if v, ok := m["kind"]; ok {
-		if s, ok := v.(string); ok {
-			unstruct.Kind = s
-		}
-	}
-	if v, ok := m["apiVersion"]; ok {
-		if s, ok := v.(string); ok {
-			unstruct.APIVersion = s
-		}
-	}
-	if metadata, ok := m["metadata"]; ok {
-		if metadata, ok := metadata.(map[string]interface{}); ok {
-			if name, ok := metadata["name"]; ok {
-				if name, ok := name.(string); ok {
-					unstruct.Name = name
-				}
-			}
-		}
-	}
 	unstruct.Object = m
 
 	return nil
@@ -138,8 +116,7 @@ func (unstructuredJSONScheme) decodeToUnstructured(data []byte, unstruct *Unstru
 
 func (s unstructuredJSONScheme) decodeToList(data []byte, list *UnstructuredList) error {
 	type decodeList struct {
-		TypeMeta `json:",inline"`
-		Items    []json.RawMessage
+		Items []gojson.RawMessage
 	}
 
 	var dList decodeList
@@ -147,7 +124,11 @@ func (s unstructuredJSONScheme) decodeToList(data []byte, list *UnstructuredList
 		return err
 	}
 
-	list.TypeMeta = dList.TypeMeta
+	if err := json.Unmarshal(data, &list.Object); err != nil {
+		return err
+	}
+
+	delete(list.Object, "items")
 	list.Items = nil
 	for _, i := range dList.Items {
 		unstruct := &Unstructured{}

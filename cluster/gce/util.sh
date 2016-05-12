@@ -25,6 +25,19 @@ source "${KUBE_ROOT}/cluster/lib/util.sh"
 
 if [[ "${OS_DISTRIBUTION}" == "debian" || "${OS_DISTRIBUTION}" == "coreos" || "${OS_DISTRIBUTION}" == "trusty" ]]; then
   source "${KUBE_ROOT}/cluster/gce/${OS_DISTRIBUTION}/helper.sh"
+elif [[ "${OS_DISTRIBUTION}" == "gci" ]]; then
+  # TODO(andyzheng0831): Switch to use the GCI specific code.
+  source "${KUBE_ROOT}/cluster/gce/trusty/helper.sh"
+  MASTER_IMAGE_PROJECT="google-containers"
+  # If choosing "gci" disto, at least the cluster master needs to run on GCI image.
+  # If the user does not set a GCI image for master, we run both master and nodes
+  # using the latest GCI dev image.
+  if [[ "${MASTER_IMAGE}" != gci* ]]; then
+    gci_images=( $(gcloud compute images list --project google-containers | grep "gci-dev" | cut -d ' ' -f1) )
+    MASTER_IMAGE="${gci_images[0]}"
+    NODE_IMAGE="${MASTER_IMAGE}"
+    NODE_IMAGE_PROJECT="${MASTER_IMAGE_PROJECT}"
+  fi
 else
   echo "Cannot operate on cluster using os distro: ${OS_DISTRIBUTION}" >&2
   exit 1
@@ -169,8 +182,6 @@ function set-preferred-region() {
 
 # Take the local tar files and upload them to Google Storage.  They will then be
 # downloaded by the master as part of the start up script for the master.
-# If running on Ubuntu trusty, we also pack the dir cluster/gce/trusty/kube-manifest
-# and upload it to Google Storage.
 #
 # Assumed vars:
 #   PROJECT
@@ -208,7 +219,7 @@ function upload-server-tars() {
 
   SERVER_BINARY_TAR_HASH=$(sha1sum-file "${SERVER_BINARY_TAR}")
   SALT_TAR_HASH=$(sha1sum-file "${SALT_TAR}")
-  if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "coreos" ]]; then
+  if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "gci" || "${OS_DISTRIBUTION}" == "coreos" ]]; then
     KUBE_MANIFESTS_TAR_HASH=$(sha1sum-file "${KUBE_MANIFESTS_TAR}")
   fi
 
@@ -224,7 +235,7 @@ function upload-server-tars() {
     local staging_bucket="gs://kubernetes-staging-${project_hash}${suffix}"
 
     # Ensure the buckets are created
-    if ! gsutil ls "${staging_bucket}" > /dev/null 2>&1 ; then
+    if ! gsutil ls "${staging_bucket}" ; then
       echo "Creating ${staging_bucket}"
       gsutil mb -l "${region}" "${staging_bucket}"
     fi
@@ -241,7 +252,7 @@ function upload-server-tars() {
     server_binary_tar_urls+=("${server_binary_gs_url/gs:\/\//https://storage.googleapis.com/}")
     salt_tar_urls+=("${salt_gs_url/gs:\/\//https://storage.googleapis.com/}")
 
-    if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "coreos" ]]; then
+    if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "gci" || "${OS_DISTRIBUTION}" == "coreos" ]]; then
       local kube_manifests_gs_url="${staging_path}/${KUBE_MANIFESTS_TAR##*/}"
       copy-to-staging "${staging_path}" "${kube_manifests_gs_url}" "${KUBE_MANIFESTS_TAR}" "${KUBE_MANIFESTS_TAR_HASH}"
       # Convert from gs:// URL to an https:// URL
@@ -249,14 +260,17 @@ function upload-server-tars() {
     fi
   done
 
-  if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "coreos" ]]; then
-    # TODO: Support fallback .tar.gz settings on CoreOS/Trusty
+  if [[ "${OS_DISTRIBUTION}" == "coreos" ]]; then
+    # TODO: Support fallback .tar.gz settings on CoreOS
     SERVER_BINARY_TAR_URL="${server_binary_tar_urls[0]}"
     SALT_TAR_URL="${salt_tar_urls[0]}"
     KUBE_MANIFESTS_TAR_URL="${kube_manifests_tar_urls[0]}"
   else
     SERVER_BINARY_TAR_URL=$(join_csv "${server_binary_tar_urls[@]}")
     SALT_TAR_URL=$(join_csv "${salt_tar_urls[@]}")
+    if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "gci" ]]; then
+      KUBE_MANIFESTS_TAR_URL=$(join_csv "${kube_manifests_tar_urls[@]}")
+    fi
   fi
 }
 
@@ -270,20 +284,20 @@ function upload-server-tars() {
 function detect-node-names {
   detect-project
   INSTANCE_GROUPS=()
-  INSTANCE_GROUPS+=($(gcloud compute instance-groups managed list --zone "${ZONE}" --project "${PROJECT}" | grep ${NODE_INSTANCE_PREFIX} | cut -f1 -d" " || true))
+  INSTANCE_GROUPS+=($(gcloud compute instance-groups managed list \
+    --zone "${ZONE}" --project "${PROJECT}" \
+    --regexp "${NODE_INSTANCE_PREFIX}-.+" \
+    --format='value(instanceGroup)' || true))
   NODE_NAMES=()
   if [[ -n "${INSTANCE_GROUPS[@]:-}" ]]; then
     for group in "${INSTANCE_GROUPS[@]}"; do
       NODE_NAMES+=($(gcloud compute instance-groups managed list-instances \
         "${group}" --zone "${ZONE}" --project "${PROJECT}" \
-        --format=yaml | grep instance: | cut -d ' ' -f 2))
+        --format='value(instance)'))
     done
-    echo "INSTANCE_GROUPS=${INSTANCE_GROUPS[*]}" >&2
-    echo "NODE_NAMES=${NODE_NAMES[*]}" >&2
-  else
-    echo "INSTANCE_GROUPS=" >&2
-    echo "NODE_NAMES=" >&2
   fi
+  echo "INSTANCE_GROUPS=${INSTANCE_GROUPS[*]:-}" >&2
+  echo "NODE_NAMES=${NODE_NAMES[*]:-}" >&2
 }
 
 # Detect the information about the minions
@@ -299,8 +313,7 @@ function detect-nodes () {
   KUBE_NODE_IP_ADDRESSES=()
   for (( i=0; i<${#NODE_NAMES[@]}; i++)); do
     local node_ip=$(gcloud compute instances describe --project "${PROJECT}" --zone "${ZONE}" \
-      "${NODE_NAMES[$i]}" --fields networkInterfaces[0].accessConfigs[0].natIP \
-      --format=text | awk '{ print $2 }')
+      "${NODE_NAMES[$i]}" --format='value(networkInterfaces[0].accessConfigs[0].natIP)')
     if [[ -z "${node_ip-}" ]] ; then
       echo "Did not find ${NODE_NAMES[$i]}" >&2
     else
@@ -327,8 +340,7 @@ function detect-master () {
   KUBE_MASTER=${MASTER_NAME}
   if [[ -z "${KUBE_MASTER_IP-}" ]]; then
     KUBE_MASTER_IP=$(gcloud compute instances describe --project "${PROJECT}" --zone "${ZONE}" \
-      "${MASTER_NAME}" --fields networkInterfaces[0].accessConfigs[0].natIP \
-      --format=text | awk '{ print $2 }')
+      "${MASTER_NAME}" --format='value(networkInterfaces[0].accessConfigs[0].natIP)')
   fi
   if [[ -z "${KUBE_MASTER_IP-}" ]]; then
     echo "Could not detect Kubernetes master node.  Make sure you've launched a cluster with 'kube-up.sh'" >&2
@@ -689,8 +701,8 @@ function create-nodes-template() {
 
   local template_name="${NODE_INSTANCE_PREFIX}-template"
 
-  # For master on trusty, we support running nodes on ContainerVM or trusty.
-  if [[ "${OS_DISTRIBUTION}" == "trusty" ]] && \
+  # For master on GCI or trusty, we support the hybrid mode with nodes on ContainerVM.
+  if [[ "${OS_DISTRIBUTION}" == "trusty" || "${OS_DISTRIBUTION}" == "gci" ]] && \
      [[ "${NODE_IMAGE}" == container* ]]; then
     source "${KUBE_ROOT}/cluster/gce/debian/helper.sh"
   fi
@@ -735,8 +747,8 @@ function create-nodes() {
         --template "$template_name" || true;
     gcloud compute instance-groups managed wait-until-stable \
         "${NODE_INSTANCE_PREFIX}-group-$i" \
-	      --zone "${ZONE}" \
-	      --project "${PROJECT}" || true;
+        --zone "${ZONE}" \
+        --project "${PROJECT}" || true;
   done
 
   # TODO: We don't add a suffix for the last group to keep backward compatibility when there's only one MIG.
@@ -1182,10 +1194,11 @@ function prepare-push() {
 function push-master {
   echo "Updating master metadata ..."
   write-master-env
-  add-instance-metadata-from-file "${KUBE_MASTER}" "kube-env=${KUBE_TEMP}/master-kube-env.yaml" "startup-script=${KUBE_ROOT}/cluster/gce/configure-vm.sh"
+  prepare-startup-script
+  add-instance-metadata-from-file "${KUBE_MASTER}" "kube-env=${KUBE_TEMP}/master-kube-env.yaml" "startup-script=${KUBE_TEMP}/configure-vm.sh"
 
   echo "Pushing to master (log at ${OUTPUT}/push-${KUBE_MASTER}.log) ..."
-  cat ${KUBE_ROOT}/cluster/gce/configure-vm.sh | gcloud compute ssh --ssh-flag="-o LogLevel=quiet" --project "${PROJECT}" --zone "${ZONE}" "${KUBE_MASTER}" --command "sudo bash -s -- --push" &> ${OUTPUT}/push-"${KUBE_MASTER}".log
+  cat ${KUBE_TEMP}/configure-vm.sh | gcloud compute ssh --ssh-flag="-o LogLevel=quiet" --project "${PROJECT}" --zone "${ZONE}" "${KUBE_MASTER}" --command "sudo bash -s -- --push" &> ${OUTPUT}/push-"${KUBE_MASTER}".log
 }
 
 # Push binaries to kubernetes node
@@ -1193,10 +1206,11 @@ function push-node() {
   node=${1}
 
   echo "Updating node ${node} metadata... "
-  add-instance-metadata-from-file "${node}" "kube-env=${KUBE_TEMP}/node-kube-env.yaml" "startup-script=${KUBE_ROOT}/cluster/gce/configure-vm.sh"
+  prepare-startup-script
+  add-instance-metadata-from-file "${node}" "kube-env=${KUBE_TEMP}/node-kube-env.yaml" "startup-script=${KUBE_TEMP}/configure-vm.sh"
 
   echo "Start upgrading node ${node} (log at ${OUTPUT}/push-${node}.log) ..."
-  cat ${KUBE_ROOT}/cluster/gce/configure-vm.sh | gcloud compute ssh --ssh-flag="-o LogLevel=quiet" --project "${PROJECT}" --zone "${ZONE}" "${node}" --command "sudo bash -s -- --push" &> ${OUTPUT}/push-"${node}".log
+  cat ${KUBE_TEMP}/configure-vm.sh | gcloud compute ssh --ssh-flag="-o LogLevel=quiet" --project "${PROJECT}" --zone "${ZONE}" "${node}" --command "sudo bash -s -- --push" &> ${OUTPUT}/push-"${node}".log
 }
 
 # Push binaries to kubernetes cluster
@@ -1350,4 +1364,11 @@ function ssh-to-node {
 # Perform preparations required to run e2e tests
 function prepare-e2e() {
   detect-project
+}
+
+# Writes configure-vm.sh to a temporary location with comments stripped. GCE
+# limits the size of metadata fields to 32K, and stripping comments is the
+# easiest way to buy us a little more room.
+function prepare-startup-script() {
+  sed '/^\s*#\([^!].*\)*$/ d' ${KUBE_ROOT}/cluster/gce/configure-vm.sh > ${KUBE_TEMP}/configure-vm.sh
 }

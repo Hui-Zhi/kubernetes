@@ -18,20 +18,17 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-GINKGO_PARALLEL=${GINKGO_PARALLEL:-n} # set to 'y' to run tests in parallel
 KUBE_ROOT=$(dirname "${BASH_SOURCE}")/..
-
 source "${KUBE_ROOT}/cluster/common.sh"
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
-# Ginkgo will build the e2e tests, so we need to make sure that the environment
-# is set up correctly (including Godeps, etc).
-kube::golang::setup_env
 # Find the ginkgo binary build as part of the release.
 ginkgo=$(kube::util::find-binary "ginkgo")
 e2e_test=$(kube::util::find-binary "e2e.test")
 
 # --- Setup some env vars.
+
+GINKGO_PARALLEL=${GINKGO_PARALLEL:-n} # set to 'y' to run tests in parallel
 
 : ${KUBECTL:="${KUBE_ROOT}/cluster/kubectl.sh"}
 : ${KUBE_CONFIG_FILE:="config-test.sh"}
@@ -102,8 +99,10 @@ export PATH=$(dirname "${e2e_test}"):"${PATH}"
   --repo-root="${KUBE_ROOT}" \
   --node-instance-group="${NODE_INSTANCE_GROUP:-}" \
   --prefix="${KUBE_GCE_INSTANCE_PREFIX:-e2e}" \
+  ${KUBE_OS_DISTRIBUTION:+"--os-distro=${KUBE_OS_DISTRIBUTION}"} \
   ${NUM_NODES:+"--num-nodes=${NUM_NODES}"} \
   ${E2E_CLEAN_START:+"--clean-start=true"} \
   ${E2E_MIN_STARTUP_PODS:+"--minStartupPods=${E2E_MIN_STARTUP_PODS}"} \
   ${E2E_REPORT_DIR:+"--report-dir=${E2E_REPORT_DIR}"} \
+  ${E2E_REPORT_PREFIX:+"--report-prefix=${E2E_REPORT_PREFIX}"} \
   "${@:-}"

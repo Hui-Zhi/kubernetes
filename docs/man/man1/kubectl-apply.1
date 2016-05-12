@@ -15,6 +15,7 @@ kubectl apply \- Apply a configuration to a resource by filename or stdin
 .PP
 Apply a configuration to a resource by filename or stdin.
 The resource will be created if it doesn't exist yet.
+To use 'apply', always create the resource initially with either 'apply' or 'create \-\-save\-config'.
 
 .PP
 JSON and YAML formats are accepted.
@@ -26,12 +27,20 @@ JSON and YAML formats are accepted.
     Filename, directory, or URL to file that contains the configuration to apply
 
 .PP
+\fB\-\-include\-extended\-apis\fP=true
+    If true, include definitions of new APIs via calls to the API server. [default true]
+
+.PP
 \fB\-o\fP, \fB\-\-output\fP=""
     Output mode. Use "\-o name" for shorter output (resource/name).
 
 .PP
 \fB\-\-record\fP=false
     Record current kubectl command in the resource annotation.
+
+.PP
+\fB\-R\fP, \fB\-\-recursive\fP=false
+    If true, process directory recursively.
 
 .PP
 \fB\-\-schema\-cache\-dir\fP="\~/.kube/schema"
@@ -50,6 +59,10 @@ JSON and YAML formats are accepted.
 .PP
 \fB\-\-api\-version\fP=""
     DEPRECATED: The API version to use when talking to the server
+
+.PP
+\fB\-\-as\fP=""
+    Username to impersonate for the operation.
 
 .PP
 \fB\-\-certificate\-authority\fP=""

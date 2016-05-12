@@ -73,7 +73,7 @@ kubelet
       --chaos-chance=0: If > 0.0, introduce random client errors and latency. Intended for testing. [default=0.0]
       --cloud-config="": The path to the cloud provider configuration file.  Empty string for no configuration file.
       --cloud-provider="": The provider for cloud services.  Empty string for no provider.
-      --cluster-dns="": IP address for a cluster DNS server.  If set, kubelet will configure all containers to use this for DNS resolution in addition to the host's DNS servers
+      --cluster-dns="": IP address for a cluster DNS server.  This value is used for containers' DNS server in case of Pods with "dnsPolicy=ClusterFirst"
       --cluster-domain="": Domain for this cluster.  If set, kubelet will configure all containers to search this domain in addition to the host's search domains
       --config="": Path to the config file or directory of files
       --configure-cbr0[=false]: If true, kubelet will configure cbr0 based on Node.Spec.PodCIDR.
@@ -87,6 +87,9 @@ kubelet
       --enable-server[=true]: Enable the Kubelet's server
       --event-burst=10: Maximum size of a bursty event records, temporarily allows event records to burst to this number, while still not exceeding event-qps. Only used if --event-qps > 0
       --event-qps=5: If > 0, limit event creations per second to this value. If 0, unlimited.
+      --eviction-hard="": A set of eviction thresholds (e.g. memory.available<1Gi) that if met would trigger a pod eviction.
+      --eviction-soft="": A set of eviction thresholds (e.g. memory.available<1.5Gi) that if met over a corresponding grace period would trigger a pod eviction.
+      --eviction-soft-grace-period="": A set of eviction grace periods (e.g. memory.available=1m30s) that correspond to how long a soft eviction threshold must hold before triggering a pod eviction.
       --experimental-flannel-overlay[=false]: Experimental support for starting the kubelet with the default overlay network (flannel). Assumes flanneld is already running in client mode. [default=false]
       --file-check-frequency=20s: Duration between checking config files for new data
       --google-json-key="": The Google Cloud Platform Service Account JSON Key to use for authentication.
@@ -101,6 +104,7 @@ kubelet
       --image-gc-high-threshold=90: The percent of disk usage after which image garbage collection is always run. Default: 90%
       --image-gc-low-threshold=80: The percent of disk usage before which image garbage collection is never run. Lowest disk usage to garbage collect to. Default: 80%
       --kube-api-burst=10: Burst to use while talking with kubernetes apiserver
+      --kube-api-content-type="": ContentType of requests sent to apiserver. Passing application/vnd.kubernetes.protobuf is an experimental feature now.
       --kube-api-qps=5: QPS to use while talking with kubernetes apiserver
       --kube-reserved=: A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G) pairs that describe resources reserved for kubernetes system components. Currently only cpu and memory are supported. See http://releases.k8s.io/HEAD/docs/user-guide/compute-resources.md for more detail. [default=none]
       --kubeconfig="/var/lib/kubelet/kubeconfig": Path to a kubeconfig file, specifying how to authenticate to API server (the master location is set by the api-servers flag).
@@ -126,7 +130,7 @@ kubelet
       --oom-score-adj=-999: The oom-score-adj value for kubelet process. Values must be within the range [-1000, 1000]
       --outofdisk-transition-frequency=5m0s: Duration for which the kubelet has to wait before transitioning out of out-of-disk node condition status. Default: 5m0s
       --pod-cidr="": The CIDR to use for pod IP addresses, only used in standalone mode.  In cluster mode, this is obtained from the master.
-      --pod-infra-container-image="gcr.io/google_containers/pause:2.0": The image whose network/ipc namespaces containers in each pod will use.
+      --pod-infra-container-image="gcr.io/google_containers/pause-amd64:3.0": The image whose network/ipc namespaces containers in each pod will use.
       --port=10250: The port for the Kubelet to serve on.
       --read-only-port=10255: The read-only port for the Kubelet to serve on with no authentication/authorization (set to 0 to disable)
       --really-crash-for-testing[=false]: If true, when panics occur crash. Intended for testing.
@@ -136,8 +140,8 @@ kubelet
       --registry-burst=10: Maximum size of a bursty pulls, temporarily allows pulls to burst to this number, while still not exceeding registry-qps.  Only used if --registry-qps > 0
       --registry-qps=5: If > 0, limit registry pull QPS to this value.  If 0, unlimited. [default=5.0]
       --resolv-conf="/etc/resolv.conf": Resolver configuration file used as the basis for the container DNS resolution configuration.
-      --rkt-path="": Path of rkt binary. Leave empty to use the first rkt in $PATH.  Only used if --container-runtime='rkt'
-      --rkt-stage1-image="": image to use as stage1. Local paths and http/https URLs are supported. If empty, the 'stage1.aci' in the same directory as '--rkt-path' will be used
+      --rkt-api-endpoint="localhost:15441": The endpoint of the rkt API service to communicate with. Only used if --container-runtime='rkt'.
+      --rkt-path="": Path of rkt binary. Leave empty to use the first rkt in $PATH.  Only used if --container-runtime='rkt'.
       --root-dir="/var/lib/kubelet": Directory path for managing kubelet files (volume mounts,etc).
       --runonce[=false]: If true, exit after spawning pods from local manifests or remote urls. Exclusive with --api-servers, and --enable-server
       --runtime-cgroups="": Optional absolute name of cgroups to create and run the runtime in.
@@ -152,7 +156,7 @@ kubelet
       --volume-stats-agg-period=1m0s: Specifies interval for kubelet to calculate and cache the volume disk usage for all pods and volumes.  To disable volume calculations, set to 0.  Default: '1m'
 ```
 
-###### Auto generated by spf13/cobra on 1-Mar-2016
+###### Auto generated by spf13/cobra on 3-May-2016
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

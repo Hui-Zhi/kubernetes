@@ -21,7 +21,6 @@
 #   clean: Clean up.
 
 OUT_DIR = _output
-GODEPS_PKG_DIR = Godeps/_workspace/pkg
 
 KUBE_GOFLAGS = $(GOFLAGS)
 export KUBE_GOFLAGS
@@ -93,10 +92,14 @@ test_e2e:
 
 # Build and run node end-to-end tests.
 #
+# Args:
+#  FOCUS: regexp that matches the tests to be run
+#  SKIP: regexp that matches the tests that needs to be skipped
 # Example:
-#   make test_e2e_node
+#   make test_e2e_node FOCUS=kubelet SKIP=container
+# Build and run tests.
 test_e2e_node:
-	hack/e2e-node-test.sh
+	hack/e2e-node-test.sh FOCUS=$(FOCUS) SKIP=$(SKIP)
 .PHONY: test_e2e_node
 
 
@@ -107,7 +110,7 @@ test_e2e_node:
 clean:
 	build/make-clean.sh
 	rm -rf $(OUT_DIR)
-	rm -rf $(GODEPS_PKG_DIR)
+	rm -rf Godeps/_workspace # Just until we are sure it is gone
 .PHONY: clean
 
 # Run 'go vet'.
@@ -124,7 +127,7 @@ clean:
 #   make vet
 #   make vet WHAT=pkg/kubelet
 vet:
-	hack/vet-go.sh $(WHAT) $(TESTS)
+	hack/verify-govet.sh $(WHAT) $(TESTS)
 .PHONY: vet
 
 # Build a release

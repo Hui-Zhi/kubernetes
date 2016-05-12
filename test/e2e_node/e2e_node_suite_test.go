@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os/exec"
 	"strings"
@@ -30,15 +31,10 @@ import (
 
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/config"
+	"github.com/onsi/ginkgo/types"
 	. "github.com/onsi/gomega"
 )
-
-var kubeletAddress = flag.String("kubelet-address", "http://127.0.0.1:10255", "Host and port of the kubelet")
-var apiServerAddress = flag.String("api-server-address", "http://127.0.0.1:8080", "Host and port of the api server")
-var nodeName = flag.String("node-name", "", "Name of the node")
-var buildServices = flag.Bool("build-services", true, "If true, build local executables")
-var startServices = flag.Bool("start-services", true, "If true, start local node services")
-var stopServices = flag.Bool("stop-services", true, "If true, stop local node services after running tests")
 
 var e2es *e2eService
 
@@ -46,7 +42,8 @@ func TestE2eNode(t *testing.T) {
 	flag.Parse()
 	rand.Seed(time.Now().UTC().UnixNano())
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2eNode Suite")
+	reporters := []Reporter{&LogReporter{}}
+	RunSpecsWithDefaultAndCustomReporters(t, "E2eNode Suite", reporters)
 }
 
 // Setup the kubelet on the node
@@ -57,10 +54,15 @@ var _ = BeforeSuite(func() {
 	if *nodeName == "" {
 		output, err := exec.Command("hostname").CombinedOutput()
 		if err != nil {
-			glog.Fatal("Could not get node name from hostname %v.  Output:\n%s", err, output)
+			glog.Fatalf("Could not get node name from hostname %v.  Output:\n%s", err, output)
 		}
 		*nodeName = strings.TrimSpace(fmt.Sprintf("%s", output))
 	}
+
+	// TODO(yifan): Temporary workaround to disable coreos from auto restart
+	// by masking the locksmithd.
+	// We should mask locksmithd when provisioning the machine.
+	maskLocksmithdOnCoreos()
 
 	if *startServices {
 		e2es = newE2eService(*nodeName)
@@ -78,15 +80,53 @@ var _ = AfterSuite(func() {
 	if e2es != nil && *startServices && *stopServices {
 		glog.Infof("Stopping node services...")
 		e2es.stop()
-		b := &bytes.Buffer{}
+	}
+	glog.Infof("Tests Finished")
+})
+
+var _ Reporter = &LogReporter{}
+
+type LogReporter struct{}
+
+func (lr *LogReporter) SpecSuiteWillBegin(config config.GinkgoConfigType, summary *types.SuiteSummary) {
+	b := &bytes.Buffer{}
+	b.WriteString("******************************************************\n")
+	glog.Infof(b.String())
+}
+
+func (lr *LogReporter) BeforeSuiteDidRun(setupSummary *types.SetupSummary) {}
+
+func (lr *LogReporter) SpecWillRun(specSummary *types.SpecSummary) {}
+
+func (lr *LogReporter) SpecDidComplete(specSummary *types.SpecSummary) {}
+
+func (lr *LogReporter) AfterSuiteDidRun(setupSummary *types.SetupSummary) {}
+
+func (lr *LogReporter) SpecSuiteDidEnd(summary *types.SuiteSummary) {
+	// Only log the binary output if the suite failed.
+	b := &bytes.Buffer{}
+	if e2es != nil && !summary.SuiteSucceeded {
+		b.WriteString(fmt.Sprintf("Process Log For Failed Suite On %s\n", *nodeName))
 		b.WriteString("-------------------------------------------------------------\n")
 		b.WriteString(fmt.Sprintf("kubelet output:\n%s\n", e2es.kubeletCombinedOut.String()))
 		b.WriteString("-------------------------------------------------------------\n")
-		b.WriteString(fmt.Sprintf("apiserver output:\n%s", e2es.apiServerCombinedOut.String()))
+		b.WriteString(fmt.Sprintf("apiserver output:\n%s\n", e2es.apiServerCombinedOut.String()))
 		b.WriteString("-------------------------------------------------------------\n")
-		b.WriteString(fmt.Sprintf("etcd output:\n%s", e2es.etcdCombinedOut.String()))
-		b.WriteString("-------------------------------------------------------------\n")
-		glog.V(2).Infof(b.String())
-
+		b.WriteString(fmt.Sprintf("etcd output:\n%s\n", e2es.etcdCombinedOut.String()))
 	}
-})
+	b.WriteString("******************************************************\n")
+	glog.Infof(b.String())
+}
+
+func maskLocksmithdOnCoreos() {
+	data, err := ioutil.ReadFile("/etc/os-release")
+	if err != nil {
+		glog.Fatalf("Could not read /etc/os-release: %v", err)
+	}
+	if bytes.Contains(data, []byte("ID=coreos")) {
+		if output, err := exec.Command("sudo", "systemctl", "mask", "--now", "locksmithd").CombinedOutput(); err != nil {
+			glog.Fatalf("Could not mask locksmithd: %v, output: %q", err, string(output))
+		}
+	}
+	glog.Infof("Locksmithd is masked successfully")
+}

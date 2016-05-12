@@ -18,6 +18,7 @@ package runtime
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 
 	"k8s.io/kubernetes/pkg/api/unversioned"
@@ -169,3 +170,22 @@ func (m MultiObjectTyper) IsUnversioned(obj Object) (bool, bool) {
 	}
 	return false, false
 }
+
+// SetZeroValue would set the object of objPtr to zero value of its type.
+func SetZeroValue(objPtr Object) error {
+	v, err := conversion.EnforcePtr(objPtr)
+	if err != nil {
+		return err
+	}
+	v.Set(reflect.Zero(v.Type()))
+	return nil
+}
+
+// DefaultFramer is valid for any stream that can read objects serially without
+// any separation in the stream.
+var DefaultFramer = defaultFramer{}
+
+type defaultFramer struct{}
+
+func (defaultFramer) NewFrameReader(r io.ReadCloser) io.ReadCloser { return r }
+func (defaultFramer) NewFrameWriter(w io.Writer) io.Writer         { return w }

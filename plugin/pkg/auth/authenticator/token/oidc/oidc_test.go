@@ -200,11 +200,8 @@ func generateSelfSignedCert(t *testing.T, host, certPath, keyPath string) {
 }
 
 func TestOIDCDiscoveryTimeout(t *testing.T) {
-	maxRetries = 3
-	retryBackoff = time.Second
-	expectErr := fmt.Errorf("failed to fetch provider config after 3 retries")
-
-	_, err := New("https://foo/bar", "client-foo", "", "sub", "")
+	expectErr := fmt.Errorf("failed to fetch provider config after 1 retries")
+	_, err := New(OIDCOptions{"https://127.0.0.1:9999/bar", "client-foo", "", "sub", "", 1, 100 * time.Millisecond})
 	if !reflect.DeepEqual(err, expectErr) {
 		t.Errorf("Expecting %v, but got %v", expectErr, err)
 	}
@@ -212,7 +209,7 @@ func TestOIDCDiscoveryTimeout(t *testing.T) {
 
 func TestOIDCDiscoveryNoKeyEndpoint(t *testing.T) {
 	var err error
-	expectErr := fmt.Errorf("failed to fetch provider config after 3 retries")
+	expectErr := fmt.Errorf("failed to fetch provider config after 0 retries")
 
 	cert := path.Join(os.TempDir(), "oidc-cert")
 	key := path.Join(os.TempDir(), "oidc-key")
@@ -230,28 +227,23 @@ func TestOIDCDiscoveryNoKeyEndpoint(t *testing.T) {
 		t.Fatalf("Cannot load cert/key pair: %v", err)
 	}
 	srv.StartTLS()
-	// TODO: Uncomment when fix #19254
-	// defer srv.Close()
+	defer srv.Close()
 
 	op.pcfg = oidc.ProviderConfig{
 		Issuer: mustParseURL(t, srv.URL), // An invalid ProviderConfig. Keys endpoint is required.
 	}
 
-	_, err = New(srv.URL, "client-foo", cert, "sub", "")
+	_, err = New(OIDCOptions{srv.URL, "client-foo", cert, "sub", "", 0, 0})
 	if !reflect.DeepEqual(err, expectErr) {
 		t.Errorf("Expecting %v, but got %v", expectErr, err)
 	}
 }
 
 func TestOIDCDiscoverySecureConnection(t *testing.T) {
-	maxRetries = 3
-	retryBackoff = time.Second
-
 	// Verify that plain HTTP issuer URL is forbidden.
 	op := newOIDCProvider(t)
 	srv := httptest.NewServer(op.mux)
-	// TODO: Uncomment when fix #19254
-	// defer srv.Close()
+	defer srv.Close()
 
 	op.pcfg = oidc.ProviderConfig{
 		Issuer:       mustParseURL(t, srv.URL),
@@ -260,7 +252,7 @@ func TestOIDCDiscoverySecureConnection(t *testing.T) {
 
 	expectErr := fmt.Errorf("'oidc-issuer-url' (%q) has invalid scheme (%q), require 'https'", srv.URL, "http")
 
-	_, err := New(srv.URL, "client-foo", "", "sub", "")
+	_, err := New(OIDCOptions{srv.URL, "client-foo", "", "sub", "", 0, 0})
 	if !reflect.DeepEqual(err, expectErr) {
 		t.Errorf("Expecting %v, but got %v", expectErr, err)
 	}
@@ -287,8 +279,7 @@ func TestOIDCDiscoverySecureConnection(t *testing.T) {
 		t.Fatalf("Cannot load cert/key pair: %v", err)
 	}
 	tlsSrv.StartTLS()
-	// TODO: Uncomment when fix #19254
-	// defer tlsSrv.Close()
+	defer tlsSrv.Close()
 
 	op.pcfg = oidc.ProviderConfig{
 		Issuer:       mustParseURL(t, tlsSrv.URL),
@@ -296,7 +287,7 @@ func TestOIDCDiscoverySecureConnection(t *testing.T) {
 	}
 
 	// Create a client using cert2, should fail.
-	_, err = New(tlsSrv.URL, "client-foo", cert2, "sub", "")
+	_, err = New(OIDCOptions{tlsSrv.URL, "client-foo", cert2, "sub", "", 0, 0})
 	if err == nil {
 		t.Fatalf("Expecting error, but got nothing")
 	}
@@ -323,8 +314,7 @@ func TestOIDCAuthentication(t *testing.T) {
 		t.Fatalf("Cannot load cert/key pair: %v", err)
 	}
 	srv.StartTLS()
-	// TODO: Uncomment when fix #19254
-	// defer srv.Close()
+	defer srv.Close()
 
 	// A provider config with all required fields.
 	op.pcfg = oidc.ProviderConfig{
@@ -417,7 +407,7 @@ func TestOIDCAuthentication(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		client, err := New(srv.URL, "client-foo", cert, tt.userClaim, tt.groupsClaim)
+		client, err := New(OIDCOptions{srv.URL, "client-foo", cert, tt.userClaim, tt.groupsClaim, 1, 100 * time.Millisecond})
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 			continue

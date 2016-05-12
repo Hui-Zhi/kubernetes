@@ -41,12 +41,19 @@ func main() {
 		"k8s.io/kubernetes/pkg/apis/autoscaling/v1",
 		"k8s.io/kubernetes/pkg/apis/batch",
 		"k8s.io/kubernetes/pkg/apis/batch/v1",
+		"k8s.io/kubernetes/pkg/apis/batch/v2alpha1",
+		"k8s.io/kubernetes/pkg/apis/apps",
+		"k8s.io/kubernetes/pkg/apis/apps/v1alpha1",
 		"k8s.io/kubernetes/pkg/apis/componentconfig",
 		"k8s.io/kubernetes/pkg/apis/componentconfig/v1alpha1",
+		"k8s.io/kubernetes/pkg/apis/policy",
+		"k8s.io/kubernetes/pkg/apis/policy/v1alpha1",
 		"k8s.io/kubernetes/pkg/apis/extensions",
 		"k8s.io/kubernetes/pkg/apis/extensions/v1beta1",
 		"k8s.io/kubernetes/pkg/apis/metrics",
 		"k8s.io/kubernetes/pkg/apis/metrics/v1alpha1",
+		"k8s.io/kubernetes/federation/apis/federation",
+		"k8s.io/kubernetes/federation/apis/federation/v1alpha1",
 	}
 
 	if err := arguments.Execute(

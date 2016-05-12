@@ -39,7 +39,7 @@ const defaultReplicas = 100
 
 func newStorage(t *testing.T) (*DeploymentStorage, *etcdtesting.EtcdTestServer) {
 	etcdStorage, server := registrytest.NewEtcdStorage(t, extensions.GroupName)
-	restOptions := generic.RESTOptions{etcdStorage, generic.UndecoratedStorage, 1}
+	restOptions := generic.RESTOptions{Storage: etcdStorage, Decorator: generic.UndecoratedStorage, DeleteCollectionWorkers: 1}
 	deploymentStorage := NewStorage(restOptions)
 	return &deploymentStorage, server
 }
@@ -84,7 +84,7 @@ var validDeployment = *validNewDeployment()
 func TestCreate(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	deployment := validNewDeployment()
 	deployment.ObjectMeta = api.ObjectMeta{}
 	test.TestCreate(
@@ -103,7 +103,7 @@ func TestCreate(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	test.TestUpdate(
 		// valid
 		validNewDeployment(),
@@ -114,11 +114,6 @@ func TestUpdate(t *testing.T) {
 			return object
 		},
 		// invalid updateFunc
-		func(obj runtime.Object) runtime.Object {
-			object := obj.(*extensions.Deployment)
-			object.UID = "newUID"
-			return object
-		},
 		func(obj runtime.Object) runtime.Object {
 			object := obj.(*extensions.Deployment)
 			object.Name = ""
@@ -140,28 +135,28 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	test.TestDelete(validNewDeployment())
 }
 
 func TestGet(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	test.TestGet(validNewDeployment())
 }
 
 func TestList(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	test.TestList(validNewDeployment())
 }
 
 func TestWatch(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Deployment.Etcd)
+	test := registrytest.New(t, storage.Deployment.Store)
 	test.TestWatch(
 		validNewDeployment(),
 		// matching labels
@@ -190,7 +185,7 @@ func TestScaleGet(t *testing.T) {
 	var deployment extensions.Deployment
 	ctx := api.WithNamespace(api.NewContext(), namespace)
 	key := etcdtest.AddPrefix("/deployments/" + namespace + "/" + name)
-	if err := storage.Deployment.Storage.Set(ctx, key, &validDeployment, &deployment, 0); err != nil {
+	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, &deployment, 0); err != nil {
 		t.Fatalf("error setting new deployment (key: %s) %v: %v", key, validDeployment, err)
 	}
 
@@ -227,10 +222,10 @@ func TestScaleUpdate(t *testing.T) {
 	var deployment extensions.Deployment
 	ctx := api.WithNamespace(api.NewContext(), namespace)
 	key := etcdtest.AddPrefix("/deployments/" + namespace + "/" + name)
-	if err := storage.Deployment.Storage.Set(ctx, key, &validDeployment, &deployment, 0); err != nil {
+	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, &deployment, 0); err != nil {
 		t.Fatalf("error setting new deployment (key: %s) %v: %v", key, validDeployment, err)
 	}
-	replicas := 12
+	replicas := int32(12)
 	update := extensions.Scale{
 		ObjectMeta: api.ObjectMeta{Name: name, Namespace: namespace},
 		Spec: extensions.ScaleSpec{
@@ -264,7 +259,7 @@ func TestStatusUpdate(t *testing.T) {
 
 	ctx := api.WithNamespace(api.NewContext(), namespace)
 	key := etcdtest.AddPrefix("/deployments/" + namespace + "/" + name)
-	if err := storage.Deployment.Storage.Set(ctx, key, &validDeployment, nil, 0); err != nil {
+	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, nil, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	update := extensions.Deployment{

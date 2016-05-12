@@ -43,6 +43,14 @@ existing replication controller and overwrite at least one (common) label in its
     Image to use for upgrading the replication controller. Must be distinct from the existing image (either new image or new image tag).  Can not be used with \-\-filename/\-f
 
 .PP
+\fB\-\-image\-pull\-policy\fP=""
+    Explicit policy for when to pull container images. Required when \-\-image is same as existing image, ignored otherwise.
+
+.PP
+\fB\-\-include\-extended\-apis\fP=true
+    If true, include definitions of new APIs via calls to the API server. [default true]
+
+.PP
 \fB\-\-no\-headers\fP=false
     When using the default output, don't print headers.
 
@@ -106,6 +114,10 @@ existing replication controller and overwrite at least one (common) label in its
 .PP
 \fB\-\-api\-version\fP=""
     DEPRECATED: The API version to use when talking to the server
+
+.PP
+\fB\-\-as\fP=""
+    Username to impersonate for the operation.
 
 .PP
 \fB\-\-certificate\-authority\fP=""

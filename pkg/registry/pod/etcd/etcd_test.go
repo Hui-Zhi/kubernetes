@@ -20,7 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	etcd "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
@@ -40,7 +39,7 @@ import (
 
 func newStorage(t *testing.T) (*REST, *BindingREST, *StatusREST, *etcdtesting.EtcdTestServer) {
 	etcdStorage, server := registrytest.NewEtcdStorage(t, "")
-	restOptions := generic.RESTOptions{etcdStorage, generic.UndecoratedStorage, 3}
+	restOptions := generic.RESTOptions{Storage: etcdStorage, Decorator: generic.UndecoratedStorage, DeleteCollectionWorkers: 3}
 	storage := NewStorage(restOptions, nil, nil)
 	return storage.Pod, storage.Binding, storage.Status, server
 }
@@ -83,7 +82,7 @@ func validChangedPod() *api.Pod {
 func TestCreate(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	pod := validNewPod()
 	pod.ObjectMeta = api.ObjectMeta{}
 	// Make an invalid pod with an an incorrect label.
@@ -109,7 +108,7 @@ func TestCreate(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestUpdate(
 		// valid
 		validNewPod(),
@@ -125,7 +124,7 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd).ReturnDeletedObject()
+	test := registrytest.New(t, storage.Store).ReturnDeletedObject()
 	test.TestDelete(validNewPod())
 
 	scheduledPod := validNewPod()
@@ -138,15 +137,15 @@ type FailDeletionStorage struct {
 	Called *bool
 }
 
-func (f FailDeletionStorage) Delete(ctx context.Context, key string, out runtime.Object) error {
+func (f FailDeletionStorage) Delete(ctx context.Context, key string, out runtime.Object, precondition *storage.Preconditions) error {
 	*f.Called = true
-	return etcd.Error{Code: etcd.ErrorCodeKeyNotFound}
+	return storage.NewKeyNotFoundError(key, 0)
 }
 
 func newFailDeleteStorage(t *testing.T, called *bool) (*REST, *etcdtesting.EtcdTestServer) {
 	etcdStorage, server := registrytest.NewEtcdStorage(t, "")
 	failDeleteStorage := FailDeletionStorage{etcdStorage, called}
-	restOptions := generic.RESTOptions{failDeleteStorage, generic.UndecoratedStorage, 3}
+	restOptions := generic.RESTOptions{Storage: failDeleteStorage, Decorator: generic.UndecoratedStorage, DeleteCollectionWorkers: 3}
 	storage := NewStorage(restOptions, nil, nil)
 	return storage.Pod, server
 }
@@ -342,21 +341,21 @@ func TestResourceLocation(t *testing.T) {
 func TestGet(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestGet(validNewPod())
 }
 
 func TestList(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestList(validNewPod())
 }
 
 func TestWatch(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestWatch(
 		validNewPod(),
 		// matching labels

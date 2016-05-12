@@ -47,7 +47,7 @@ docker:
       - pkg: docker-io
 
 {% endif %}
-{% elif grains.cloud is defined and grains.cloud == 'vsphere' and grains.os == 'Debian' and grains.osrelease_info[0] >=8 %}
+{% elif grains.cloud is defined and grains.cloud in ['vsphere', 'photon-controller'] and grains.os == 'Debian' and grains.osrelease_info[0] >=8 %}
 
 {% if pillar.get('is_systemd') %}
 
@@ -69,6 +69,7 @@ docker:
         environment_file: {{ environment_file }}
     - require:
       - file: /opt/kubernetes/helpers/docker-prestart
+      - pkg: docker-engine
 
 # The docker service.running block below doesn't work reliably
 # Instead we run our script which e.g. does a systemd daemon-reload
@@ -162,15 +163,6 @@ docker:
   file.replace:
     - pattern: '^net.ipv4.ip_forward=0'
     - repl: '# net.ipv4.ip_forward=0'
-
-/etc/init.d/docker:
-  file.managed:
-    - source: salt://docker/docker-init
-    - template: jinja
-    - user: root
-    - group: root
-    - mode: 755
-    - makedirs: true
 {% endif %}
 
 # Work around Salt #18089: https://github.com/saltstack/salt/issues/18089
@@ -217,6 +209,14 @@ net.ipv4.ip_forward:
 {% if grains.get('cloud', '') == 'gce'
    and grains.get('os_family', '') == 'Debian'
    and grains.get('oscodename', '') == 'wheezy' -%}
+{% set docker_pkg_name='' %}
+{% set override_deb='' %}
+{% set override_deb_sha1='' %}
+{% set override_docker_ver='' %}
+
+{% elif grains.get('cloud', '') == 'gce'
+   and grains.get('os_family', '') == 'Debian'
+   and grains.get('oscodename', '') == 'jessie' -%}
 {% set docker_pkg_name='' %}
 {% set override_deb='' %}
 {% set override_deb_sha1='' %}

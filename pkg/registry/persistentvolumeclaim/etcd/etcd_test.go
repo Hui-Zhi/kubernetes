@@ -33,7 +33,7 @@ import (
 
 func newStorage(t *testing.T) (*REST, *StatusREST, *etcdtesting.EtcdTestServer) {
 	etcdStorage, server := registrytest.NewEtcdStorage(t, "")
-	restOptions := generic.RESTOptions{etcdStorage, generic.UndecoratedStorage, 1}
+	restOptions := generic.RESTOptions{Storage: etcdStorage, Decorator: generic.UndecoratedStorage, DeleteCollectionWorkers: 1}
 	persistentVolumeClaimStorage, statusStorage := NewREST(restOptions)
 	return persistentVolumeClaimStorage, statusStorage, server
 }
@@ -62,7 +62,7 @@ func validNewPersistentVolumeClaim(name, ns string) *api.PersistentVolumeClaim {
 func TestCreate(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	pv := validNewPersistentVolumeClaim("foo", api.NamespaceDefault)
 	pv.ObjectMeta = api.ObjectMeta{}
 	test.TestCreate(
@@ -78,7 +78,7 @@ func TestCreate(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestUpdate(
 		// valid
 		validNewPersistentVolumeClaim("foo", api.NamespaceDefault),
@@ -98,28 +98,28 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd).ReturnDeletedObject()
+	test := registrytest.New(t, storage.Store).ReturnDeletedObject()
 	test.TestDelete(validNewPersistentVolumeClaim("foo", api.NamespaceDefault))
 }
 
 func TestGet(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestGet(validNewPersistentVolumeClaim("foo", api.NamespaceDefault))
 }
 
 func TestList(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestList(validNewPersistentVolumeClaim("foo", api.NamespaceDefault))
 }
 
 func TestWatch(t *testing.T) {
 	storage, _, server := newStorage(t)
 	defer server.Terminate(t)
-	test := registrytest.New(t, storage.Etcd)
+	test := registrytest.New(t, storage.Store)
 	test.TestWatch(
 		validNewPersistentVolumeClaim("foo", api.NamespaceDefault),
 		// matching labels
@@ -148,7 +148,7 @@ func TestUpdateStatus(t *testing.T) {
 	key, _ := storage.KeyFunc(ctx, "foo")
 	key = etcdtest.AddPrefix(key)
 	pvcStart := validNewPersistentVolumeClaim("foo", api.NamespaceDefault)
-	err := storage.Storage.Set(ctx, key, pvcStart, nil, 0)
+	err := storage.Storage.Create(ctx, key, pvcStart, nil, 0)
 
 	pvc := &api.PersistentVolumeClaim{
 		ObjectMeta: api.ObjectMeta{

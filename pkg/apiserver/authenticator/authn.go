@@ -23,9 +23,9 @@ import (
 	"k8s.io/kubernetes/pkg/auth/authenticator/bearertoken"
 	"k8s.io/kubernetes/pkg/serviceaccount"
 	"k8s.io/kubernetes/pkg/util/crypto"
+	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/password/keystone"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/password/passwordfile"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/basicauth"
-	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/keystone"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/union"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/x509"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/token/oidc"
@@ -138,7 +138,15 @@ func newAuthenticatorFromTokenFile(tokenAuthFile string) (authenticator.Request,
 
 // newAuthenticatorFromOIDCIssuerURL returns an authenticator.Request or an error.
 func newAuthenticatorFromOIDCIssuerURL(issuerURL, clientID, caFile, usernameClaim, groupsClaim string) (authenticator.Request, error) {
-	tokenAuthenticator, err := oidc.New(issuerURL, clientID, caFile, usernameClaim, groupsClaim)
+	tokenAuthenticator, err := oidc.New(oidc.OIDCOptions{
+		IssuerURL:     issuerURL,
+		ClientID:      clientID,
+		CAFile:        caFile,
+		UsernameClaim: usernameClaim,
+		GroupsClaim:   groupsClaim,
+		MaxRetries:    oidc.DefaultRetries,
+		RetryBackoff:  oidc.DefaultBackoff,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +179,8 @@ func newAuthenticatorFromClientCAFile(clientCAFile string) (authenticator.Reques
 }
 
 // newAuthenticatorFromTokenFile returns an authenticator.Request or an error
-func newAuthenticatorFromKeystoneURL(keystoneConfigFile string) (authenticator.Request, error) {
-	keystoneAuthenticator, err := keystone.NewKeystoneAuthenticator(keystoneConfigFile)
+func newAuthenticatorFromKeystoneURL(keystoneURL string) (authenticator.Request, error) {
+	keystoneAuthenticator, err := keystone.NewKeystoneAuthenticator(keystoneURL)
 	if err != nil {
 		return nil, err
 	}
