@@ -49,14 +49,6 @@ func (self *ResourceList) Memory() *resource.Quantity {
 	return &resource.Quantity{Format: resource.BinarySI}
 }
 
-// Returns the NvidiaGPU number.
-func (self *ResourceList) NvidiaGPU() *resource.Quantity {
-	if val, ok := (*self)[ResourceNvidiaGPU]; ok {
-		return &val
-	}
-	return &resource.Quantity{}
-}
-
 // Returns the Memory limit if specified.
 func (self *ResourceList) NvidiaGPU() *resource.Quantity {
 	if val, ok := (*self)[ResourceNvidiaGPU]; ok {
