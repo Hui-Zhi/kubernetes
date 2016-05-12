@@ -18,6 +18,7 @@ api-token
 api-version
 apiserver-count
 auth-path
+authentication-token-webhook-config-file
 authorization-mode
 authorization-policy-file
 authorization-webhook-config-file
@@ -95,6 +96,7 @@ dockercfg-path
 driver-port
 drop-embedded-fields
 dry-run
+dump-logs-on-failure
 duration-sec
 e2e-output-dir
 e2e-verify-service-account
