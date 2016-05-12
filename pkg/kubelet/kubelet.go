@@ -370,8 +370,8 @@ func NewMainKubelet(
 	}
 
 	klet.gpuPlugins = gpu.ProbeGPUPlugins()
-	//glog.Infof("Hans: NewMainKubelet: gpu init: gpuPlugins:%+v", klet.gpuPlugins)
-	//glog.Infof("Hans: NewMainKubelet: gpu init: len(gpuPlugins):%d", len(klet.gpuPlugins))
+	//glog.Infof("kubelet: NewMainKubelet: gpu init: gpuPlugins:%+v", klet.gpuPlugins)
+	//glog.Infof("kubelet: NewMainKubelet: gpu init: len(gpuPlugins):%d", len(klet.gpuPlugins))
 
 	procFs := procfs.NewProcFS()
 	imageBackOff := flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)
@@ -1049,7 +1049,7 @@ func (kl *Kubelet) initialNodeStatus() (*api.Node, error) {
 // to call multiple times, but not concurrently (kl.registrationCompleted is
 // not locked).
 func (kl *Kubelet) registerWithApiserver() {
-	//glog.Infof("Hans: registerWithApiserver(): kubelet: %+v ", kl)
+	//glog.Infof("Kubelet: registerWithApiserver(): kubelet: %+v ", kl)
 	if kl.registrationCompleted {
 		return
 	}
@@ -1067,7 +1067,7 @@ func (kl *Kubelet) registerWithApiserver() {
 			continue
 		}
 		//glog.V(2).Infof("Attempting to register node %s", node.Name)
-		//glog.V(2).Infof("Hans: registerWithApiserver: Node: %+v", node)
+		//glog.V(2).Infof("Kubelet: registerWithApiserver: Node: %+v", node)
 		if _, err := kl.kubeClient.Nodes().Create(node); err != nil {
 			if !apierrors.IsAlreadyExists(err) {
 				glog.V(2).Infof("Unable to register %s with the apiserver: %v", node.Name, err)
@@ -1078,7 +1078,7 @@ func (kl *Kubelet) registerWithApiserver() {
 				glog.Errorf("error getting node %q: %v", kl.nodeName, err)
 				continue
 			}
-			//glog.V(2).Infof("Hans: registerWithApiserver: currentNode: %+v", currentNode)
+			//glog.V(2).Infof("Kubelet: registerWithApiserver: currentNode: %+v", currentNode)
 			if currentNode == nil {
 				glog.Errorf("no node instance returned for %q", kl.nodeName)
 				continue
@@ -2963,7 +2963,7 @@ func (kl *Kubelet) setNodeAddress(node *api.Node) error {
 }
 
 func (kl *Kubelet) setNodeStatusGPUInfo(node *api.Node) {
-	glog.Infof("Hans: setNodeStatusGPUInfo: gpuPlugins:%+v", kl.gpuPlugins)
+	glog.Infof("Kubelet: setNodeStatusGPUInfo: gpuPlugins:%+v", kl.gpuPlugins)
 	totalGpuNum := 0
 	availableGpuNum := 0
 	for _, gpuPlugin := range kl.gpuPlugins {
@@ -3269,9 +3269,9 @@ func SetNodeStatus(f func(*api.Node) error) Option {
 // tryUpdateNodeStatus tries to update node status to master. If ReconcileCBR0
 // is set, this function will also confirm that cbr0 is configured correctly.
 func (kl *Kubelet) tryUpdateNodeStatus() error {
-	//glog.Infof("Hans: tryUpdateNodeStatus: Kubelet: %+v", kl)
+	//glog.Infof("kubelet: tryUpdateNodeStatus: Kubelet: %+v", kl)
 	node, err := kl.kubeClient.Nodes().Get(kl.nodeName)
-	//glog.Infof("Hans: tryUpdateNodeStatus: after Nodes().Get() node: %+v", node)
+	//glog.Infof("kubelet: tryUpdateNodeStatus: after Nodes().Get() node: %+v", node)
 	if err != nil {
 		return fmt.Errorf("error getting node %q: %v", kl.nodeName, err)
 	}
