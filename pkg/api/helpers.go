@@ -177,7 +177,6 @@ var standardResources = sets.NewString(
 	string(ResourceConfigMaps),
 	string(ResourcePersistentVolumeClaims),
 	string(ResourceStorage),
-	string(ResourceNvidiaGPU),
 )
 
 // IsStandardResourceName returns true if the resource is known to the system
