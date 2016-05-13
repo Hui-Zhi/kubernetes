@@ -18,11 +18,11 @@ package predicates
 
 import "fmt"
 
-var (
-	ErrExceededMaxPodNumber      = newInsufficientResourceError("PodCount")
-	ErrInsufficientFreeCPU       = newInsufficientResourceError("CPU")
-	ErrInsufficientFreeMemory    = newInsufficientResourceError("Memory")
-	ErrInsufficientFreeNvidiaGPU = newInsufficientResourceError("NvidiaGPU")
+const (
+	podCountResourceName  string = "PodCount"
+	cpuResourceName       string = "CPU"
+	memoryResoureceName   string = "Memory"
+	nvidiaGpuResourceName string = "NvidiaGpu"
 )
 
 var (

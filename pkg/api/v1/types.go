@@ -1301,6 +1301,8 @@ type PodConditionType string
 
 // These are valid conditions of pod.
 const (
+	// PodScheduled represents status of the scheduling process for this pod.
+	PodScheduled PodConditionType = "PodScheduled"
 	// PodReady means the pod is able to service requests and should be added to the
 	// load balancing pools of all matching services.
 	PodReady PodConditionType = "Ready"
@@ -2305,6 +2307,11 @@ type NodeAddress struct {
 // ResourceName is the name identifying various resources in a ResourceList.
 type ResourceName string
 
+// Resource names must be not more than 63 characters, consisting of upper- or lower-case alphanumeric characters,
+// with the -, _, and . characters allowed anywhere, except the first or last character.
+// The default convention, matching that for annotations, is to use lower-case names, with dashes, rather than
+// camel case, separating compound words.
+// Fully-qualified resource typenames are constructed from a DNS-style subdomain, followed by a slash `/` and a name.
 const (
 	// CPU, in cores. (500m = .5 cores)
 	ResourceCPU ResourceName = "cpu"
@@ -2312,8 +2319,9 @@ const (
 	ResourceMemory ResourceName = "memory"
 	// Volume size, in bytes (e,g. 5Gi = 5GiB = 5 * 1024 * 1024 * 1024)
 	ResourceStorage ResourceName = "storage"
-	// Devices
-	ResourceNVIDIAGPU ResourceName = "nvidiaGPU"
+	// NVIDIA GPU, in devices. Alpha, might change: although fractional and allowing values >1, only one whole device per node is assigned.
+	ResourceNvidiaGPU ResourceName = "alpha.kubernetes.io/nvidia-gpu"
+	// Number of Pods that may be running on this Node: see ResourcePods
 )
 
 // ResourceList is a set of (resource name, quantity) pairs.
@@ -2820,13 +2828,13 @@ const (
 	// ResourceServicesLoadBalancers, number
 	ResourceServicesLoadBalancers ResourceName = "services.loadbalancers"
 	// CPU request, in cores. (500m = .5 cores)
-	ResourceCPURequest ResourceName = "cpu.request"
-	// CPU limit, in cores. (500m = .5 cores)
-	ResourceCPULimit ResourceName = "cpu.limit"
+	ResourceRequestsCPU ResourceName = "requests.cpu"
 	// Memory request, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)
-	ResourceMemoryRequest ResourceName = "memory.request"
+	ResourceRequestsMemory ResourceName = "requests.memory"
+	// CPU limit, in cores. (500m = .5 cores)
+	ResourceLimitsCPU ResourceName = "limits.cpu"
 	// Memory limit, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)
-	ResourceMemoryLimit ResourceName = "memory.limit"
+	ResourceLimitsMemory ResourceName = "limits.memory"
 )
 
 // A ResourceQuotaScope defines a filter that must match each object tracked by a quota

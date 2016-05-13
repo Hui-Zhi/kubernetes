@@ -346,9 +346,8 @@ func (c *VolumeZoneChecker) predicate(pod *api.Pod, nodeInfo *schedulercache.Nod
 }
 
 type resourceRequest struct {
-	milliCPU int64
-	memory   int64
-	// Needs to be changed.
+	milliCPU  int64
+	memory    int64
 	nvidiaGPU int64
 }
 
@@ -372,9 +371,9 @@ func CheckPodsExceedingFreeResources(pods []*api.Pod, allocatable api.ResourceLi
 	nvidiaGPURequested := int64(0)
 	for _, pod := range pods {
 		podRequest := getResourceRequest(pod)
-		fitsCPU := totalMilliCPU == 0 || (totalMilliCPU-milliCPURequested) >= podRequest.milliCPU
-		fitsMemory := totalMemory == 0 || (totalMemory-memoryRequested) >= podRequest.memory
-		fitsNvidiaGPU := (totalNvidiaGPU - nvidiaGPURequested) >= podRequest.nvidiaGPU
+		fitsCPU := (totalMilliCPU - milliCPURequested) >= podRequest.milliCPU
+		fitsMemory := (totalMemory - memoryRequested) >= podRequest.memory
+		fitsNVidiaGPU := (totalNvidiaGPU - nvidiaGPURequested) >= podRequest.nvidiaGPU
 		if !fitsCPU {
 			// the pod doesn't fit due to CPU request
 			notFittingCPU = append(notFittingCPU, pod)
@@ -385,12 +384,11 @@ func CheckPodsExceedingFreeResources(pods []*api.Pod, allocatable api.ResourceLi
 			notFittingMemory = append(notFittingMemory, pod)
 			continue
 		}
-		if !fitsNvidiaGPU {
-			// the pod doesn't fit due to nvidia GPU request
+		if !fitsNVidiaGPU {
+			// the pod doesn't fit due to NvidiaGPU request
 			notFittingNvidiaGPU = append(notFittingNvidiaGPU, pod)
 			continue
 		}
-
 		// the pod fits
 		milliCPURequested += podRequest.milliCPU
 		memoryRequested += podRequest.memory
@@ -424,6 +422,7 @@ func PodFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, er
 
 	totalMilliCPU := allocatable.Cpu().MilliValue()
 	totalMemory := allocatable.Memory().Value()
+	totalNvidiaGPU := allocatable.NvidiaGPU().Value()
 
 	if totalMilliCPU < podRequest.milliCPU+nodeInfo.RequestedResource().MilliCPU {
 		return false,
@@ -433,15 +432,10 @@ func PodFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, er
 		return false,
 			newInsufficientResourceError(memoryResoureceName, podRequest.memory, nodeInfo.RequestedResource().Memory, totalMemory)
 	}
-	if len(exceedingNvidiaGPU) > 0 {
-		glog.V(10).Infof("Cannot schedule Pod %+v, because Node %v does not have sufficient Nvidia GPU", podName(pod), node)
-		return false, ErrInsufficientFreeNvidiaGPU
+	if totalNvidiaGPU < podRequest.nvidiaGPU+nodeInfo.RequestedResource().NvidiaGPU {
+		return false,
+			newInsufficientResourceError(nvidiaGpuResourceName, podRequest.nvidiaGPU, nodeInfo.RequestedResource().NvidiaGPU, totalNvidiaGPU)
 	}
-	if len(exceedingNvidiaGPU) > 0 {
-		glog.V(10).Infof("Cannot schedule Pod %+v, because Node %v does not have sufficient NVIDIA GPU", podName(pod), node)
-		return false, ErrInsufficientFreeNvidiaGPU
-	}
-
 	glog.V(10).Infof("Schedule Pod %+v on Node %+v is allowed, Node is running only %v out of %v Pods.",
 		podName(pod), node.Name, len(nodeInfo.Pods()), allowedPodNumber)
 

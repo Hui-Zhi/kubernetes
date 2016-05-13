@@ -149,7 +149,7 @@ func validateOwnerReference(ownerReference api.OwnerReference, fldPath *field.Pa
 	if len(ownerReference.UID) == 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("uid"), ownerReference.UID, "uid must not be empty"))
 	}
-	if _, ok := BannedOwners[*gvk]; ok {
+	if _, ok := BannedOwners[gvk]; ok {
 		allErrs = append(allErrs, field.Invalid(fldPath, ownerReference, fmt.Sprintf("%s is disallowed from being an owner", gvk)))
 	}
 	return allErrs
@@ -2489,6 +2489,7 @@ func validateBasicResource(quantity resource.Quantity, fldPath *field.Path) fiel
 func ValidateResourceRequirements(requirements *api.ResourceRequirements, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	limPath := fldPath.Child("limits")
+	reqPath := fldPath.Child("requests")
 	for resourceName, quantity := range requirements.Limits {
 		fldPath := limPath.Key(string(resourceName))
 		// Validate resource name.
@@ -2499,12 +2500,14 @@ func ValidateResourceRequirements(requirements *api.ResourceRequirements, fldPat
 		// Check that request <= limit.
 		requestQuantity, exists := requirements.Requests[resourceName]
 		if exists {
-			if quantity.Cmp(requestQuantity) < 0 {
+			// For GPUs, require that no request be set.
+			if resourceName == api.ResourceNvidiaGPU {
+				allErrs = append(allErrs, field.Invalid(reqPath, requestQuantity.String(), "cannot be set"))
+			} else if quantity.Cmp(requestQuantity) < 0 {
 				allErrs = append(allErrs, field.Invalid(fldPath, quantity.String(), "must be greater than or equal to request"))
 			}
 		}
 	}
-	reqPath := fldPath.Child("requests")
 	for resourceName, quantity := range requirements.Requests {
 		fldPath := reqPath.Key(string(resourceName))
 		// Validate resource name.

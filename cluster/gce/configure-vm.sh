@@ -444,10 +444,10 @@ hairpin_mode: '$(echo "$HAIRPIN_MODE" | sed -e "s/'/''/g")'
 opencontrail_tag: '$(echo "$OPENCONTRAIL_TAG" | sed -e "s/'/''/g")'
 opencontrail_kubernetes_tag: '$(echo "$OPENCONTRAIL_KUBERNETES_TAG")'
 opencontrail_public_subnet: '$(echo "$OPENCONTRAIL_PUBLIC_SUBNET")'
-enable_manifest_url: '$(echo "$ENABLE_MANIFEST_URL" | sed -e "s/'/''/g")'
-manifest_url: '$(echo "$MANIFEST_URL" | sed -e "s/'/''/g")'
-manifest_url_header: '$(echo "$MANIFEST_URL_HEADER" | sed -e "s/'/''/g")'
-num_nodes: $(echo "${NUM_NODES}" | sed -e "s/'/''/g")
+enable_manifest_url: '$(echo "${ENABLE_MANIFEST_URL:-}" | sed -e "s/'/''/g")'
+manifest_url: '$(echo "${MANIFEST_URL:-}" | sed -e "s/'/''/g")'
+manifest_url_header: '$(echo "${MANIFEST_URL_HEADER:-}" | sed -e "s/'/''/g")'
+num_nodes: $(echo "${NUM_NODES:-}" | sed -e "s/'/''/g")
 e2e_storage_test_environment: '$(echo "$E2E_STORAGE_TEST_ENVIRONMENT" | sed -e "s/'/''/g")'
 kube_uid: '$(echo "${KUBE_UID}" | sed -e "s/'/''/g")'
 EOF
@@ -791,35 +791,12 @@ EOF
     CLOUD_CONFIG=/etc/gce.conf
   fi
 
-  if [[ -n "${CLOUD_CONFIG:-}" ]]; then
+  if [[ -n ${CLOUD_CONFIG:-} ]]; then
   cat <<EOF >>/etc/salt/minion.d/grains.conf
   cloud_config: ${CLOUD_CONFIG}
 EOF
   else
     rm -f /etc/gce.conf
-  fi
-
-  if [[ -n "${GCP_AUTHZ_URL:-}" ]]; then
-    cat <<EOF >>/etc/salt/minion.d/grains.conf
-  webhook_authorization_config: /etc/gcp_authz.config
-EOF
-    cat <<EOF >/etc/gcp_authz.config
-clusters:
-  - name: gcp-authorization-server
-    cluster:
-      server: ${GCP_AUTHZ_URL}
-users:
-  - name: kube-apiserver
-    user:
-      auth-provider:
-        name: gcp
-current-context: webhook
-contexts:
-- context:
-    cluster: gcp-authorization-server
-    user: kube-apiserver
-  name: webhook
-EOF
   fi
 
   # If the kubelet on the master is enabled, give it the same CIDR range

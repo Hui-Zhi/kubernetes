@@ -574,6 +574,7 @@ func (dm *DockerManager) runContainer(
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	cpuRequest := container.Resources.Requests.Cpu()
 	cpuLimit := container.Resources.Limits.Cpu()
+	nvidiaGPULimit := container.Resources.Limits.NvidiaGPU()
 	var cpuShares int64
 	// If request is not specified, but limit is, we want request to default to limit.
 	// API server does this for new containers, but we repeat this logic in Kubelet
@@ -585,73 +586,16 @@ func (dm *DockerManager) runContainer(
 		// of CPU shares.
 		cpuShares = milliCPUToShares(cpuRequest.MilliValue())
 	}
-
-	glog.Errorf("Hans: runContainer(): container: %+v", container)
-	gpuRequest := int(container.Resources.Requests.Gpu().Value())
-	glog.Errorf("Hans: runContainer(): gpuRequest: %d", gpuRequest)
-	deviceOpts := []docker.Device{}
-	if gpuRequest > 0 {
-		// Init GPU environment if need
-		if err := dm.gpuPlugins[0].InitGPUEnv(); err != nil {
-			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-			return kubecontainer.ContainerID{}, err
+	var devices []dockercontainer.DeviceMapping
+	if nvidiaGPULimit.Value() != 0 {
+		// Experimental. For now, we hardcode /dev/nvidia0 no matter what the user asks for
+		// (we only support one device per node).
+		devices = []dockercontainer.DeviceMapping{
+			{"/dev/nvidia0", "/dev/nvidia0", "mrw"},
+			{"/dev/nvidiactl", "/dev/nvidiactl", "mrw"},
+			{"/dev/nvidia-uvm", "/dev/nvidia-uvm", "mrw"},
 		}
-
-		// alloc gpu device for this container
-		gpuIdxes, err := dm.gpuPlugins[0].AllocGPU(gpuRequest, pod.UID, container)
-		if err != nil {
-			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-			return kubecontainer.ContainerID{}, err
-		}
-
-		// add device options when launch container
-		devOpts, err := dm.gpuPlugins[0].GenerateDeviceOpts(gpuIdxes)
-		if err != nil && container != nil {
-			dm.gpuPlugins[0].FreeGPU(pod.UID, container)
-			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-			return kubecontainer.ContainerID{}, err
-		}
-
-		deviceOpts = devOpts
-		labels[gpuTypes.KubernetesContainerGPUNameLabel] = dm.gpuPlugins[0].Name()
-		labels[gpuTypes.KubernetesContainerGPUIndexLabel] = gpuUtil.GetLabelFromGPUIndex(gpuIdxes)
 	}
-
-	_, containerName := BuildDockerName(dockerName, container)
-	dockerOpts := docker.CreateContainerOptions{
-		Name: containerName,
-		Config: &docker.Config{
-			Env:          makeEnvList(opts.Envs),
-			ExposedPorts: exposedPorts,
-			Hostname:     containerHostname,
-			Image:        container.Image,
-			// Memory and CPU are set here for older versions of Docker (pre-1.6).
-			Memory:     memoryLimit,
-			MemorySwap: -1,
-			CPUShares:  cpuShares,
-			WorkingDir: container.WorkingDir,
-			Labels:     labels,
-			// Interactive containers:
-			OpenStdin: container.Stdin,
-			StdinOnce: container.StdinOnce,
-			Tty:       container.TTY,
-		},
-	}
-
-	setEntrypointAndCommand(container, opts, &dockerOpts)
-
-	glog.V(3).Infof("Container %v/%v/%v: setting entrypoint \"%v\" and command \"%v\"", pod.Namespace, pod.Name, container.Name, dockerOpts.Config.Entrypoint, dockerOpts.Config.Cmd)
-
-	securityContextProvider := securitycontext.NewSimpleSecurityContextProvider()
-	securityContextProvider.ModifyContainerConfig(pod, container, dockerOpts.Config)
-	dockerContainer, err := dm.client.CreateContainer(dockerOpts)
-	if err != nil {
-		dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-		return kubecontainer.ContainerID{}, err
-	}
-
-	dm.recorder.Eventf(ref, api.EventTypeNormal, kubecontainer.CreatedContainer, "Created container with docker id %v", utilstrings.ShortenString(dockerContainer.ID, 12))
-
 	podHasSELinuxLabel := pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SELinuxOptions != nil
 	binds := makeMountBindings(opts.Mounts, podHasSELinuxLabel)
 	// The reason we create and mount the log file in here (not in kubelet) is because
@@ -687,6 +631,7 @@ func (dm *DockerManager) runContainer(
 			Memory:     memoryLimit,
 			MemorySwap: -1,
 			CPUShares:  cpuShares,
+			Devices:    devices,
 		},
 		SecurityOpt: securityOpts,
 	}
