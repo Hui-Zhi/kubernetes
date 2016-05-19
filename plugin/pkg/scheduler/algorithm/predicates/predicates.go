@@ -348,6 +348,7 @@ func (c *VolumeZoneChecker) predicate(pod *api.Pod, nodeInfo *schedulercache.Nod
 type resourceRequest struct {
 	milliCPU  int64
 	memory    int64
+	nvidiaGPU int64
 }
 
 func getResourceRequest(pod *api.Pod) resourceRequest {

@@ -21,7 +21,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
-	"k8s.io/kubernetes/pkg/kubelet/gpu"
 	"k8s.io/kubernetes/pkg/kubelet/network"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
@@ -49,11 +48,10 @@ func NewFakeDockerManager(
 
 	fakeOOMAdjuster := oom.NewFakeOOMAdjuster()
 	fakeProcFs := procfs.NewFakeProcFS()
-	gpuPlugins := gpu.ProbeGPUPlugins()
-
-	dm := NewDockerManager(client, recorder, livenessManager, containerRefManager, machineInfo, gpuPlugins, podInfraContainerImage, qps,
-		burst, containerLogsDir, osInterface, networkPlugin, generator, httpClient, &NativeExecHandler{},
-		fakeOOMAdjuster, fakeProcFs, false, imageBackOff, true)
+	fakePodGetter := &fakePodGetter{}
+	dm := NewDockerManager(client, recorder, livenessManager, containerRefManager, fakePodGetter, machineInfo, podInfraContainerImage, 
+		burst, containerLogsDir, osInterface, networkPlugin, runtimeHelper, httpClient, &NativeExecHandler{},
+		fakeOOMAdjuster, fakeProcFs, false, imageBackOff, false, false, true)
 	dm.dockerPuller = &FakeDockerPuller{}
 
 	// ttl of version cache is set to 0 so we always call version api directly in tests.
