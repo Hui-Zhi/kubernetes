@@ -20,13 +20,13 @@ func ProbeGPUPlugins() []gpuTypes.GPUPlugin {
 		glog.Infof("Init cuda Plugin failed: %q", err)
 	}
 
-	glog.Infof("Hans: ProbeGPUPlugins: allPlugins: %+v, len: %d", allPlugins, len(allPlugins))
+	glog.Infof("kubelet: ProbeGPUPlugins: allPlugins: %+v, len: %d", allPlugins, len(allPlugins))
 
 	return allPlugins
 }
 
 func IsGPUAvailable(pods []*api.Pod, gpuCapacity int) bool {
-	glog.Infof("Hans: IsGPUAvaiable()")
+	glog.Infof("kubelet: IsGPUAvaiable()")
 	totalGPU := gpuCapacity
 	totalGPURequest := int(0)
 
@@ -34,17 +34,17 @@ func IsGPUAvailable(pods []*api.Pod, gpuCapacity int) bool {
 		totalGPURequest += getGPUResourceRequest(pod)
 	}
 
-	glog.Infof("Hans: IsGPUAvailable: totalGPU: %d, totalGPURequest: %d", totalGPU, totalGPURequest)
+	glog.Infof("kubelet: IsGPUAvailable: totalGPU: %d, totalGPURequest: %d", totalGPU, totalGPURequest)
 	return totalGPURequest == 0 || (totalGPU-totalGPURequest) >= 0
 }
 
 func getGPUResourceRequest(pod *api.Pod) int {
-	glog.Infof("Hans: getGPUResourceRequest()")
+	glog.Infof("kubelet: getGPUResourceRequest()")
 	gpuReqNum := 0
 	for _, container := range pod.Spec.Containers {
 		requests := container.Resources.Requests
-		gpuReqNum += int(requests.Gpu().Value())
+		gpuReqNum += int(requests.NvidiaGPU().Value())
 	}
-	glog.Infof("Hans: getGPUResourceRequest() gpuReqNum:%d", gpuReqNum)
+	glog.Infof("kubelet: getGPUResourceRequest() gpuReqNum:%d", gpuReqNum)
 	return gpuReqNum
 }
