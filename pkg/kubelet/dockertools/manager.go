@@ -42,7 +42,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
-	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/util"
+	// gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/util"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -636,35 +636,6 @@ func (dm *DockerManager) runContainer(
 		SecurityOpt: securityOpts,
 	}
 
-	if gpuRequest > 0 {
-		// check whether the host gpu computing environment support this image.
-		isSupported, err := dm.gpuPlugins[0].IsImageSupported(container.Image)
-		glog.Errorf("Hans: runContainer(): IsImageSupported: %+v, err: %+v", isSupported, err)
-		if err != nil {
-			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-			return kubecontainer.ContainerID{}, err
-		}
-
-		// if the image need host platform volumes, do it
-		if isSupported {
-			volOpts, err := dm.gpuPlugins[0].GenerateVolumeOpts(container.Image)
-			glog.Errorf("Hans: runContainer(): GenerateVolumeOpts: %+v, err: %+v", volOpts, err)
-			if err != nil {
-				dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
-				return kubecontainer.ContainerID{}, err
-			}
-			if len(volOpts) > 0 {
-				hc.Binds = append(hc.Binds, volOpts...)
-			}
-		}
-
-		if len(deviceOpts) > 0 {
-			hc.Devices = deviceOpts
-		}
-		// hc.CapAdd = append(hc.CapAdd, "MKNOD")
-
-		glog.Errorf("Kubelet: runContainer(): afterAllocGPU: container:%+v", container)
-	}
 	// If current api version is newer than docker 1.10 requested, set OomScoreAdj to HostConfig
 	result, err := dm.checkDockerAPIVersion(dockerv110APIVersion)
 	if err != nil {
@@ -1393,16 +1364,6 @@ func (dm *DockerManager) killContainer(containerID kubecontainer.ContainerID, co
 	} else {
 		gracePeriod = *gracePeriodOverride
 		glog.V(2).Infof("Killing container %q, but using %d second grace period override", name, gracePeriod)
-	}
-
-	if container != nil {
-		glog.V(2).Infof("Hans: killContainer(): invoke FreeGPU()")
-		// free gpu resource for the container
-		if gpuRequest := int(container.Resources.Requests.Gpu().MilliValue()); gpuRequest > 0 {
-			if err := dm.gpuPlugins[0].FreeGPU(pod.UID, container); err != nil {
-				glog.Warningf("Failed to free the gpu resource(%s)", err)
-			}
-		}
 	}
 
 	err := dm.client.StopContainer(ID, int(gracePeriod))
@@ -2158,59 +2119,6 @@ func (dm *DockerManager) getGPUProbeInfo(labels map[string]string) (string, stri
 }
 
 func (dm *DockerManager) ProbeGPUStatus() error {
-	glog.Infof("Hans: ProbeGPUStatus()")
-	// only fetch the running container
-	containers, err := dm.client.ListContainers(docker.ListContainersOptions{All: false})
-	if err != nil {
-		return err
-	}
-
-	gpuUsageStatus := map[string]map[gpuTypes.PodCotainerHashID]gpuTypes.GPUUsageStatus{}
-	for _, c := range containers {
-		iResult, err := dm.client.InspectContainer(c.ID)
-		if err != nil {
-			return err
-		}
-
-		glog.V(4).Infof("Container inspect result: %+v", *iResult)
-		glog.Infof("Hans: ProbeGPUStatus():Container inspect result: %+v", *iResult)
-
-		// it only collect gpu usage of running container
-		if !iResult.State.Running {
-			continue
-		}
-
-		gpuNameLabel, found := iResult.Config.Labels[gpuTypes.KubernetesContainerGPUNameLabel]
-		if !found {
-			//this container don't alloc gpu, so ignore it
-			continue
-		}
-		gpuIndexesLabel, found := iResult.Config.Labels[gpuTypes.KubernetesContainerGPUIndexLabel]
-		podID, containerHashID := dm.getGPUProbeInfo(iResult.Config.Labels)
-		podContainerHash := gpuUtil.HashContainerFromLabel(podID, containerHashID)
-
-		if gpuUsageStatus[gpuNameLabel] == nil {
-			gpuUsageStatus[gpuNameLabel] = map[gpuTypes.PodCotainerHashID]gpuTypes.GPUUsageStatus{}
-		}
-
-		gpuUsageStatus[gpuNameLabel][podContainerHash] = gpuTypes.GPUUsageStatus{GPUIndexes: gpuUtil.GetGPUIndexFromLabel(gpuIndexesLabel)}
-	}
-
-	//update each gpu status kept in gpuPlugin
-	for _, gpuPlugin := range dm.gpuPlugins {
-		if gpuStatus, found := gpuUsageStatus[gpuPlugin.Name()]; found {
-			glog.V(4).Infof("Hans: ProbeGPUStatus(): type(%s); new gpu Status: %+v", gpuPlugin.Name(), gpuStatus)
-			gpuPlugin.UpdateGPUUsageStatus(&gpuStatus)
-		} else {
-			gpuPlugin.UpdateGPUUsageStatus(&map[gpuTypes.PodCotainerHashID]gpuTypes.GPUUsageStatus{})
-		}
-	}
-
-	// Test for show the current gpu usage status
-	for _, gpuPlugin := range dm.gpuPlugins {
-		gpuPlugin.ShowCurrentGPUUsageStatus()
-	}
-
 	return nil
 }
 
