@@ -22,7 +22,7 @@ const (
 	podCountResourceName  string = "PodCount"
 	cpuResourceName       string = "CPU"
 	memoryResourceName    string = "Memory"
-	nvidiaGpuResourceName string = "NvidiaGpu"
+	nvidiaGpuResourceName string = "NvidiaGPU"
 )
 
 var (

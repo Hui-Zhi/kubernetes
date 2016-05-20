@@ -54,6 +54,8 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
 	"k8s.io/kubernetes/pkg/kubelet/envvars"
+	"k8s.io/kubernetes/pkg/kubelet/gpu"
+	gpuType "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
@@ -385,6 +387,8 @@ func NewMainKubelet(
 		return nil, err
 	}
 
+	klet.gpuPlugins = gpu.ProbeGPUPlugins()
+
 	procFs := procfs.NewProcFS()
 	imageBackOff := flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)
 
@@ -404,6 +408,7 @@ func NewMainKubelet(
 			containerRefManager,
 			klet.podManager,
 			machineInfo,
+			klet.gpuPlugins,
 			podInfraContainerImage,
 			pullQPS,
 			pullBurst,
@@ -2476,6 +2481,10 @@ func (kl *Kubelet) canAdmitPod(pods []*api.Pod, pod *api.Pod) (bool, string, str
 		return false, "OutOfDisk", "cannot be started due to lack of disk space."
 	}
 
+	if kl.hasInsufficientGPU(pods) {
+		return false, "InsufficientFreeGPU", "cannot start the pod due to insufficient free GPU."
+	}
+
 	return true, "", ""
 }
 
@@ -3009,6 +3018,32 @@ func (kl *Kubelet) setNodeAddress(node *api.Node) error {
 	return nil
 }
 
+func (kl *Kubelet) setNodeStatusGPUInfo(node *api.Node) {
+	glog.Infof("Hans: setNodeStatusGPUInfo: gpuPlugins:%+v", kl.gpuPlugins)
+	totalGpuNum := 0
+	availableGpuNum := 0
+	for _, gpuPlugin := range kl.gpuPlugins {
+		gpuDevices, err := gpuPlugin.Detect()
+		if err == nil {
+			totalGpuNum += len(gpuDevices.Devices)
+		}
+
+		availableGPUIdxes, err := gpuPlugin.GetAvailableGPUs()
+		if err == nil {
+			availableGpuNum += len(availableGPUIdxes)
+		}
+	}
+
+	if node.Status.Capacity != nil && node.Status.Allocatable != nil {
+		node.Status.Capacity[api.ResourceNvidiaGPU] = *resource.NewQuantity(int64(totalGpuNum), resource.Digit)
+		//node.Status.Allocatable[api.ResourceDevices] = *resource.NewQuantity(int64(availableGpuNum), resource.Digit)
+		node.Status.Allocatable[api.ResourceNvidiaGPU] = *resource.NewQuantity(int64(totalGpuNum), resource.Digit)
+	}
+
+	glog.Errorf("kubelet:setNodeStatusGPUInfo(): Available GPU num: %d", availableGpuNum)
+
+}
+
 func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 	// TODO: Post NotReady if we cannot get MachineInfo from cAdvisor. This needs to start
 	// cAdvisor locally, e.g. for test-cmd.sh, and in integration test.
@@ -3117,6 +3152,7 @@ func (kl *Kubelet) setNodeStatusInfo(node *api.Node) {
 	kl.setNodeStatusDaemonEndpoints(node)
 	kl.setNodeStatusImages(node)
 	kl.setNodeStatusGoRuntime(node)
+	kl.setNodeStatusGPUInfo(node)
 }
 
 // Set Readycondition for the node.
@@ -3178,6 +3214,7 @@ func (kl *Kubelet) setNodeReadyCondition(node *api.Node) {
 	}
 }
 
+<<<<<<< HEAD
 // setNodeMemoryPressureCondition for the node.
 // TODO: this needs to move somewhere centralized...
 func (kl *Kubelet) setNodeMemoryPressureCondition(node *api.Node) {
@@ -3234,6 +3271,19 @@ func (kl *Kubelet) setNodeMemoryPressureCondition(node *api.Node) {
 	if newCondition {
 		node.Status.Conditions = append(node.Status.Conditions, *condition)
 	}
+=======
+func (kl *Kubelet) hasInsufficientGPU(pods []*api.Pod) bool {
+	glog.Infof("kubelet: hasInsufficientGPU()")
+	totalGPUNum := int(0)
+	for _, gpuPlugin := range kl.gpuPlugins {
+		gpuDevices, err := gpuPlugin.Detect()
+		if err == nil {
+			totalGPUNum += len(gpuDevices.Devices)
+		}
+	}
+	glog.Infof("kubelet: hasInsufficientGPU() totalGPUNum: %d", totalGPUNum)
+	return !gpu.IsGPUAvailable(pods, totalGPUNum)
+>>>>>>> nvidia gpu capability
 }
 
 // Set OODcondition for the node.
