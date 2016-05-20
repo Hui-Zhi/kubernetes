@@ -1047,6 +1047,26 @@
 			"Rev": "750f18e5eac3f6193b354fc14c03d92d4318a0ec"
 		},
 		{
+			"ImportPath": "github.com/hui-zhi/nvidia-docker/tools/src/cuda",
+			"Comment": "v0.0.0-poc-61-g0b6b044",
+			"Rev": "0b6b04480546943459f40b9b25ad77200917f1dd"
+		},
+		{
+			"ImportPath": "github.com/hui-zhi/nvidia-docker/tools/src/ldcache",
+			"Comment": "v0.0.0-poc-61-g0b6b044",
+			"Rev": "0b6b04480546943459f40b9b25ad77200917f1dd"
+		},
+		{
+			"ImportPath": "github.com/hui-zhi/nvidia-docker/tools/src/nvidia",
+			"Comment": "v0.0.0-poc-61-g0b6b044",
+			"Rev": "0b6b04480546943459f40b9b25ad77200917f1dd"
+		},
+		{
+			"ImportPath": "github.com/hui-zhi/nvidia-docker/tools/src/nvml",
+			"Comment": "v0.0.0-poc-61-g0b6b044",
+			"Rev": "0b6b04480546943459f40b9b25ad77200917f1dd"
+		},
+		{
 			"ImportPath": "github.com/google/cadvisor/info/v1",
 			"Comment": "v0.23.0",
 			"Rev": "750f18e5eac3f6193b354fc14c03d92d4318a0ec"
