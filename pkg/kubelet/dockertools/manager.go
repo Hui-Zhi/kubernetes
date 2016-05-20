@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+//	docker "github.com/fsouza/go-dockerclient"
 	dockertypes "github.com/docker/engine-api/types"
 	dockercontainer "github.com/docker/engine-api/types/container"
 	dockerstrslice "github.com/docker/engine-api/types/strslice"
@@ -43,7 +44,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
-	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/util"
+//	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/util"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -240,7 +241,7 @@ func NewDockerManager(
 		containerRefManager:    containerRefManager,
 		os:                     osInterface,
 		machineInfo:            machineInfo,
-		gpuPlugInfo:						gpuPlugins,
+		gpuPlugins:							gpuPlugins,
 		podInfraContainerImage: podInfraContainerImage,
 		dockerPuller:           newDockerPuller(client, qps, burst),
 		dockerRoot:             dockerRoot,
@@ -581,7 +582,7 @@ func (dm *DockerManager) runContainer(
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	cpuRequest := container.Resources.Requests.Cpu()
 	cpuLimit := container.Resources.Limits.Cpu()
-	nvidiaGPULimit := container.Resources.Limits.NvidiaGPU()
+	// nvidiaGPULimit := container.Resources.Limits.NvidiaGPU()
 	var cpuShares int64
 	// If request is not specified, but limit is, we want request to default to limit.
 	// API server does this for new containers, but we repeat this logic in Kubelet
@@ -604,11 +605,11 @@ func (dm *DockerManager) runContainer(
 		}
 	}
 */
-	gpuRequest := int(container.Resources.Requests.NvidiaGPU().Value())
+/*	gpuRequest := int(container.Resources.Requests.NvidiaGPU().Value())
 	deviceOpts := []docker.Device{}
 	if gpuRequest > 0 {
 		if err := dm.gpuPlugins[0].InitGPUEnv(); err != nil {
-			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer, FailedToCreateContainer, "Failed to create docker container, error: %v", err)
+			dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container, error: %v", err)
 			return kubecontainer.ContainerID{}, err
 		}
 
@@ -628,7 +629,7 @@ func (dm *DockerManager) runContainer(
 		labels[gpuTypes.KubernetesContainerGPUNameLabel] = dm.gpuPlugins[0].Name()
 		labels[gpuTypes.KubernetesContainerGPUIndexLabel] = gpuUtil.GetLabelFromGPUIndex(gpuIdxes)
 	}
-
+*/
 	podHasSELinuxLabel := pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SELinuxOptions != nil
 	binds := makeMountBindings(opts.Mounts, podHasSELinuxLabel)
 	// The reason we create and mount the log file in here (not in kubelet) is because
@@ -664,11 +665,11 @@ func (dm *DockerManager) runContainer(
 			Memory:     memoryLimit,
 			MemorySwap: -1,
 			CPUShares:  cpuShares,
-			Devices:    devices,
+			// Devices:    devices,
 		},
 		SecurityOpt: securityOpts,
 	}
-
+/*
 	if gpuRequest > 0 {
 		isSupported, err := dm.gpuPlugins[0].IsImageSupported(container.Image)
 
@@ -678,7 +679,7 @@ func (dm *DockerManager) runContainer(
 		}
 
 		if isSupported {
-			volOpts, err := dm.gpuPlugins[0].GenerateVolumnOpts(container.Image)
+			volOpts, err := dm.gpuPlugins[0].GenerateVolumeOpts(container.Image)
 
 			if err != nil {
 				dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container, error: %v", err)
@@ -693,7 +694,7 @@ func (dm *DockerManager) runContainer(
 			hc.Devices = deviceOpts
 		}
 	}
-
+*/
 	// If current api version is newer than docker 1.10 requested, set OomScoreAdj to HostConfig
 	result, err := dm.checkDockerAPIVersion(dockerv110APIVersion)
 	if err != nil {
@@ -1405,7 +1406,7 @@ func (dm *DockerManager) killContainer(containerID kubecontainer.ContainerID, co
 		glog.V(2).Infof("Container %q termination failed after %s: %v", name, unversioned.Now().Sub(start.Time), err)
 	}
 	ref, ok := dm.containerRefManager.GetRef(containerID)
-
+/*
 	if container != nil {
 		if gpuRequest := int(container.Resources.Requests.Request.NvidiaGPU().Value()); gpuRequest > 0 {
 			if err := dm.gpuPlugins[0].FreeGPU(pod.UID, container); err != nil {
@@ -1413,7 +1414,7 @@ func (dm *DockerManager) killContainer(containerID kubecontainer.ContainerID, co
 			}
 		}
 	}
-
+*/
 	if !ok {
 		glog.Warningf("No ref for pod '%q'", name)
 	} else {
@@ -1903,8 +1904,7 @@ func (dm *DockerManager) getGPUProbeInfo(labels map[string]string) (string, stri
 	return string(containerInfo.PodUID), containerInfo.Hash
 }
 
-func (dm *DockerManager) ProbeGPUStatus() error {
-	glog.Infof("Hans: ProbeGPUStatus()")
+func (dm *DockerManager) ProbeGPUStatus() error {/*
 	// only fetch the running container
 	containers, err := dm.client.ListContainers(docker.ListContainersOptions{All: false})
 	if err != nil {
@@ -1956,7 +1956,7 @@ func (dm *DockerManager) ProbeGPUStatus() error {
 	for _, gpuPlugin := range dm.gpuPlugins {
 		gpuPlugin.ShowCurrentGPUUsageStatus()
 	}
-
+*/
 	return nil
 }
 
@@ -2303,7 +2303,7 @@ func findActiveInitContainer(pod *api.Pod, podStatus *kubecontainer.PodStatus) (
 		}
 	}
 
-	dm.ProbeGPUStatus()
+	//dm.ProbeGPUStatus()
 	return &pod.Spec.InitContainers[0], nil, false
 }
 

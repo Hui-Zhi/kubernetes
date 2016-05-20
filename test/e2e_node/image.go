@@ -44,7 +44,7 @@ func dockerRuntime() kubecontainer.Runtime {
 	pm := kubepod.NewBasicPodManager(nil)
 	dm := dockertools.NewDockerManager(
 		dockerClient,
-		nil, nil, nil, pm, nil,
+		nil, nil, nil, pm, nil, nil, 
 		"", 0, 0, "",
 		nil, nil, nil, nil, nil, nil, nil,
 		false, nil, true, false, false,

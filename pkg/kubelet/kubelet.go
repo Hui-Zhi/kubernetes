@@ -640,6 +640,9 @@ type Kubelet struct {
 	// Network plugin.
 	networkPlugin network.NetworkPlugin
 
+	// GPU plugin
+	gpuPlugins []gpuType.GPUPlugin
+
 	// Handles container probing.
 	probeManager prober.Manager
 	// Manages container health check results.
@@ -3214,8 +3217,6 @@ func (kl *Kubelet) setNodeReadyCondition(node *api.Node) {
 	}
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 // setNodeMemoryPressureCondition for the node.
 // TODO: this needs to move somewhere centralized...
 func (kl *Kubelet) setNodeMemoryPressureCondition(node *api.Node) {
@@ -3272,9 +3273,8 @@ func (kl *Kubelet) setNodeMemoryPressureCondition(node *api.Node) {
 	if newCondition {
 		node.Status.Conditions = append(node.Status.Conditions, *condition)
 	}
-=======
-=======
->>>>>>> 2dfa17a48e07156b7e8a36c288a42a8aa303be3b
+}
+
 func (kl *Kubelet) hasInsufficientGPU(pods []*api.Pod) bool {
 	glog.Infof("kubelet: hasInsufficientGPU()")
 	totalGPUNum := int(0)
@@ -3286,10 +3286,6 @@ func (kl *Kubelet) hasInsufficientGPU(pods []*api.Pod) bool {
 	}
 	glog.Infof("kubelet: hasInsufficientGPU() totalGPUNum: %d", totalGPUNum)
 	return !gpu.IsGPUAvailable(pods, totalGPUNum)
-<<<<<<< HEAD
->>>>>>> nvidia gpu capability
-=======
->>>>>>> 2dfa17a48e07156b7e8a36c288a42a8aa303be3b
 }
 
 // Set OODcondition for the node.
