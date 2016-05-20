@@ -140,6 +140,8 @@ func (sh *suffixHandler) construct(base, exponent int32, fmt Format) (s suffix, 
 		return sh.decSuffixes.construct(base, exponent)
 	case BinarySI:
 		return sh.binSuffixes.construct(base, exponent)
+	case Digit:
+		return sh.binSuffixes.construct(base, exponent)
 	case DecimalExponent:
 		if base != 10 {
 			return "", false
