@@ -44,6 +44,8 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/gpu/nvidia"
+	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -53,7 +55,6 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/cache"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/securitycontext"
 	kubetypes "k8s.io/kubernetes/pkg/types"
@@ -246,7 +247,7 @@ func NewDockerManager(
 		containerRefManager:    containerRefManager,
 		os:                     osInterface,
 		machineInfo:            machineInfo,
-		gpuPlugins:							gpuPlugins,
+		gpuPlugins:             gpuPlugins,
 		podInfraContainerImage: podInfraContainerImage,
 		dockerPuller:           newDockerPuller(client, qps, burst),
 		dockerRoot:             dockerRoot,
@@ -546,6 +547,16 @@ func makePortsAndBindings(portMappings []kubecontainer.PortMapping) (map[dockern
 	return exposedPorts, portBindings
 }
 
+func (dm *DockerManager) GetNvidiaGPUPlugin() gpuTypes.GPUPlugin {
+	for _, itemPlugin := range dm.gpuPlugins {
+		if itemPlugin.Vendor() == nvidia.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
+}
+
 func (dm *DockerManager) runContainer(
 	pod *api.Pod,
 	container *api.Container,
@@ -602,12 +613,19 @@ func (dm *DockerManager) runContainer(
 	}
 	var devices []dockercontainer.DeviceMapping
 	if nvidiaGPULimit.Value() != 0 {
-		// Experimental. For now, we hardcode /dev/nvidia0 no matter what the user asks for
-		// (we only support one device per node).
-		devices = []dockercontainer.DeviceMapping{
-			{"/dev/nvidia0", "/dev/nvidia0", "mrw"},
-			{"/dev/nvidiactl", "/dev/nvidiactl", "mrw"},
-			{"/dev/nvidia-uvm", "/dev/nvidia-uvm", "mrw"},
+		nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+		if nvidiaGPUPlugin != nil {
+			nvidiaGPUPaths := nvidiaGPUPlugin.AllocateGPU(int(nvidiaGPULimit.Value()))
+			if nvidiaGPUPaths != nil {
+				devices = []dockercontainer.DeviceMapping{
+					{nvidia.NvidiaDeviceCtl, nvidia.NvidiaDeviceCtl, "mrw"},
+					{nvidia.NvidiaDeviceUVM, nvidia.NvidiaDeviceUVM, "mrw"},
+				}
+
+				for _, path := range nvidiaGPUPaths {
+					devices = append(devices, dockercontainer.DeviceMapping{path, path, "mrw"})
+				}
+			}
 		}
 	}
 	podHasSELinuxLabel := pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SELinuxOptions != nil

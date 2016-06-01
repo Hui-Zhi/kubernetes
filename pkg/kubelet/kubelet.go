@@ -3015,6 +3015,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 			gpuCount += currCount
 		}
 	}
+	glog.Infof("GPU discover support: gpu count: %v", gpuCount)
 
 	if err != nil {
 		// TODO(roberthbailey): This is required for test-cmd.sh to pass.

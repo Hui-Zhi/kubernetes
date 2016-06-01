@@ -19,10 +19,9 @@ type GPUDevice struct {
 type GPUPlugin interface {
 	InitPlugin() error
 	ReleasePlugin() error
-	Discovery() ([]GPUDevice, error)
 	Capacity() (int, error)
-	AvailableGPUs() (int, error)
-	Name() string
-	AllocateGPU(int) error
+	AvailableGPUs() int
+	Vendor() string
+	AllocateGPU(int) []string
 	FreeGPU()
 }
