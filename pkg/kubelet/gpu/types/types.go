@@ -1,9 +1,8 @@
 package types
 
 import (
-	//	"k8s.io/kubernetes/pkg/api"
-	//	"k8s.io/kubernetes/pkg/types"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+//	"k8s.io/kubernetes/pkg/api"
+//	"k8s.io/kubernetes/pkg/types"
 )
 
 const (
@@ -18,7 +17,6 @@ type GPUDevice struct {
 }
 
 type GPUPlugin interface {
-	ProbePlugin() (types.GPUPlugin, error)
 	InitPlugin() error
 	ReleasePlugin() error
 	Discovery() ([]GPUDevice, error)

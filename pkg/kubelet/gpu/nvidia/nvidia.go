@@ -20,15 +20,18 @@ type NvidiaGPU struct {
 	gpuInfo []gpuTypes.GPUDevice
 }
 
-func (nvidiaGPU *NvidiaGPU) ProbePlugin() (gpuTypes.GPUPlugin, error) {
+func ProbePlugin() (gpuTypes.GPUPlugin, error) {
 	gpuUtil.NVMLInit()
+	var nvidiaGPU NvidiaGPU
 	gpuDevices, err := nvidiaGPU.Discovery()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &NvidiaGPU{gpuInfo: gpuDevices}, nil
+	return &NvidiaGPU{
+		gpuInfo: gpuDevices,
+	}, nil
 }
 
 func (nvidiaGPU *NvidiaGPU) Name() string {
@@ -58,11 +61,11 @@ func (nvidiaGPU *NvidiaGPU) Discovery() ([]gpuTypes.GPUDevice, error) {
 
 	var i uint
 	for i = 0; i < gpuCount; i++ {
-		path, err := gpuUtil.GetDevicePath(i)
+		//	path, err := gpuUtil.GetDevicePath(i)
 		if err != nil {
 			return nil, err
 		}
-		append(gpuDevices, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUUnknow})
+		//		append(gpuDevices, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUUnknow})
 	}
 
 	return gpuDevices, nil

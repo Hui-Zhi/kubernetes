@@ -8,7 +8,12 @@ import (
 )
 
 func ProbeGPUPlugins() []gpuTypes.GPUPlugin {
-	nvidiaPlugin, err := NvidiaGPU.ProbePlugin()
+	nvidiaPlugin, err := nvidia.ProbePlugin()
+
+	if err != nil {
+		return nil
+	}
+
 	allPlugins := []gpuTypes.GPUPlugin{nvidiaPlugin}
 
 	return allPlugins
