@@ -1,7 +1,7 @@
 package util
 
-
 // #cgo LDFLAGS: -lnvidia-ml -L /usr/src/gdk/nvml/lib/
+// #cgo CPPFLAGS: -I /usr/include/nvidia/gdk/
 // #include <nvml.h>
 import "C"
 
@@ -60,4 +60,3 @@ func GetDevicePath(idx uint) (string, error) {
 
 	return path, err
 }
-

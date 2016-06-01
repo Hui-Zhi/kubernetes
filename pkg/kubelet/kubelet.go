@@ -56,6 +56,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
 	"k8s.io/kubernetes/pkg/kubelet/envvars"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
+	"k8s.io/kubernetes/pkg/kubelet/gpu"
+	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -98,8 +100,6 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 	"k8s.io/kubernetes/third_party/golang/expansion"
-	"k8s.io/kubernetes/pkg/kubelet/gpu"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
 const (
@@ -3007,15 +3007,15 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 	// TODO: Post NotReady if we cannot get MachineInfo from cAdvisor. This needs to start
 	// cAdvisor locally, e.g. for test-cmd.sh, and in integration test.
 	info, err := kl.GetCachedMachineInfo()
-	gpuCount := 0;
-	
+	gpuCount := 0
+
 	for _, plugin := range kl.gpuPlugins {
 		currCount, err := plugin.Capacity()
 		if err == nil {
 			gpuCount += currCount
 		}
 	}
-	
+
 	if err != nil {
 		// TODO(roberthbailey): This is required for test-cmd.sh to pass.
 		// See if the test should be updated instead.

@@ -1,26 +1,34 @@
 package nvidia
 
-
 import (
-//	"fmt"
-//	"strings"
-//	"github.com/golang/glog"
-//	"k8s.io/kubernetes/pkg/api"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+	//	"fmt"
+	//	"strings"
+	//	"github.com/golang/glog"
+	//	"k8s.io/kubernetes/pkg/api"
 	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
-//	"k8s.io/kubernets/pkg/types"
+	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+	//	"k8s.io/kubernets/pkg/types"
 )
 
-
 const (
-	NvidiaName string = "NVIDIA"
+	NvidiaName      string = "NVIDIA"
 	NvidiaDeviceCtl string = "/dev/nvidia/nvidiactl"
 	NvidiaDeviceUVM string = "/dev/nvidia/nvidia-uvm"
 )
 
-
 type NvidiaGPU struct {
 	gpuInfo []gpuTypes.GPUDevice
+}
+
+func (nvidiaGPU *NvidiaGPU) ProbePlugin() (gpuTypes.GPUPlugin, error) {
+	gpuUtil.NVMLInit()
+	gpuDevices, err := nvidiaGPU.Discovery()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &NvidiaGPU{gpuInfo: gpuDevices}, nil
 }
 
 func (nvidiaGPU *NvidiaGPU) Name() string {
@@ -39,7 +47,7 @@ func (nvidiaGPU *NvidiaGPU) Discovery() ([]gpuTypes.GPUDevice, error) {
 	gpuCount, err := gpuUtil.GetDeviceCount()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if gpuCount <= 0 {
@@ -48,15 +56,15 @@ func (nvidiaGPU *NvidiaGPU) Discovery() ([]gpuTypes.GPUDevice, error) {
 
 	gpuDevices := []gpuTypes.GPUDevice{}
 
-	for i := 0; i < gpuCount; i++ {
-		path, err := GetDevicePath(i);
+	var i uint
+	for i = 0; i < gpuCount; i++ {
+		path, err := gpuUtil.GetDevicePath(i)
 		if err != nil {
 			return nil, err
 		}
-		append(gpuDevices, GPUDevice(Path: path, Status: gpuTypes.GPUUnknow))
+		append(gpuDevices, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUUnknow})
 	}
 
-	
 	return gpuDevices, nil
 }
 
@@ -75,4 +83,3 @@ func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) error {
 
 func (nvidiaGPU *NvidiaGPU) FreeGPU() {
 }
-
