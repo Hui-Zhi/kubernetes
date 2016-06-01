@@ -53,8 +53,6 @@ func NewCmdAttach(f *cmdutil.Factory, cmdIn io.Reader, cmdOut, cmdErr io.Writer)
 		Out: cmdOut,
 		Err: cmdErr,
 
-		CommandName: "kubectl attach",
-
 		Attach: &DefaultRemoteAttach{},
 	}
 	cmd := &cobra.Command{
@@ -142,6 +140,10 @@ func (p *AttachOptions) Complete(f *cmdutil.Factory, cmd *cobra.Command, argsIn 
 	}
 	p.Client = client
 
+	if p.CommandName == "" {
+		p.CommandName = cmd.CommandPath()
+	}
+
 	return nil
 }
 
@@ -167,9 +169,11 @@ func (p *AttachOptions) Run() error {
 		if err != nil {
 			return err
 		}
-		if pod.Status.Phase != api.PodRunning {
-			return fmt.Errorf("pod %s is not running and cannot be attached to; current phase is %s", p.PodName, pod.Status.Phase)
+
+		if pod.Status.Phase == api.PodSucceeded || pod.Status.Phase == api.PodFailed {
+			return fmt.Errorf("cannot attach a container in a completed pod; current phase is %s", pod.Status.Phase)
 		}
+
 		p.Pod = pod
 		// TODO: convert this to a clean "wait" behavior
 	}
@@ -229,6 +233,11 @@ func (p *AttachOptions) Run() error {
 func (p *AttachOptions) GetContainer(pod *api.Pod) api.Container {
 	if len(p.ContainerName) > 0 {
 		for _, container := range pod.Spec.Containers {
+			if container.Name == p.ContainerName {
+				return container
+			}
+		}
+		for _, container := range pod.Spec.InitContainers {
 			if container.Name == p.ContainerName {
 				return container
 			}

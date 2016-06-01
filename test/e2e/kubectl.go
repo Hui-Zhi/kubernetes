@@ -348,6 +348,7 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		})
 
 		It("should support inline execution and attach", func() {
+			framework.SkipIfContainerRuntimeIs("rkt") // #23335
 			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
 
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
@@ -509,7 +510,7 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 					{"Controllers:", "ReplicationController/redis-master"},
 					{"Image:", redisImage},
 					{"State:", "Running"},
-					{"QoS Tier:", "BestEffort"},
+					{"QoS Class:", "BestEffort"},
 				}
 				checkOutput(output, requiredStrings)
 			})
@@ -1044,6 +1045,8 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		jobName := "e2e-test-rm-busybox-job"
 
 		It("should create a job from an image, then delete the job [Conformance]", func() {
+			// The rkt runtime doesn't support attach, see #23335
+			framework.SkipIfContainerRuntimeIs("rkt")
 			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
 
 			By("executing a command with run --rm and attach with stdin")
@@ -1232,6 +1235,10 @@ func curl(url string) (string, error) {
 }
 
 func validateGuestbookApp(c *client.Client, ns string) {
+	framework.Logf("Waiting for all frontend pods to be Running.")
+	label := labels.SelectorFromSet(labels.Set(map[string]string{"tier": "frontend", "app": "guestbook"}))
+	err := framework.WaitForPodsWithLabelRunning(c, ns, label)
+	Expect(err).NotTo(HaveOccurred())
 	framework.Logf("Waiting for frontend to serve content.")
 	if !waitForGuestbookResponse(c, "get", "", `{"data": ""}`, guestbookStartupTimeout, ns) {
 		framework.Failf("Frontend service did not start serving content in %v seconds.", guestbookStartupTimeout.Seconds())

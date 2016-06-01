@@ -31,12 +31,14 @@ source "${KUBE_ROOT}/cluster/lib/logging.sh"
 # NOTE This must match the version_regex in build/common.sh
 # kube::release::parse_and_validate_release_version()
 KUBE_RELEASE_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(beta|alpha)\\.(0|[1-9][0-9]*))?$"
+KUBE_RELEASE_VERSION_DASHED_REGEX="v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)(-(beta|alpha)-(0|[1-9][0-9]*))?"
 
 # KUBE_CI_VERSION_REGEX matches things like "v1.2.3-alpha.4.56+abcdefg" This
 #
 # NOTE This must match the version_regex in build/common.sh
 # kube::release::parse_and_validate_ci_version()
 KUBE_CI_VERSION_REGEX="^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-(beta|alpha)\\.(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)\\+[-0-9a-z]*)?$"
+KUBE_CI_VERSION_DASHED_REGEX="^v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(beta|alpha)-(0|[1-9][0-9]*)(-(0|[1-9][0-9]*)\\+[-0-9a-z]*)?"
 
 # Generate kubeconfig data for the created cluster.
 # Assumed vars:
@@ -473,8 +475,19 @@ function yaml-quote {
 # Builds the RUNTIME_CONFIG var from other feature enable options (such as
 # features in alpha)
 function build-runtime-config() {
-  # There is nothing to do here for now. Just using this function as a placeholder.
-  :
+  # If a policy provider is specified, enable NetworkPolicy API.
+  if [[ -n "${NETWORK_POLICY_PROVIDER}" ]]; then
+    appends="extensions/v1beta1=true,extensions/v1beta1/networkpolicies=true"
+  fi
+
+  # Generate the RUNTIME_CONFIG.
+  if [[ -n ${appends} ]]; then
+    if [[ -n ${RUNTIME_CONFIG} ]]; then
+      RUNTIME_CONFIG="${RUNTIME_CONFIG},${appends}"
+    else 
+      RUNTIME_CONFIG="${appends}"
+    fi
+  fi
 }
 
 # Writes the cluster name into a temporary file.
@@ -551,6 +564,7 @@ HAIRPIN_MODE: $(yaml-quote ${HAIRPIN_MODE:-})
 OPENCONTRAIL_TAG: $(yaml-quote ${OPENCONTRAIL_TAG:-})
 OPENCONTRAIL_KUBERNETES_TAG: $(yaml-quote ${OPENCONTRAIL_KUBERNETES_TAG:-})
 OPENCONTRAIL_PUBLIC_SUBNET: $(yaml-quote ${OPENCONTRAIL_PUBLIC_SUBNET:-})
+NETWORK_POLICY_PROVIDER: $(yaml-quote ${NETWORK_POLICY_PROVIDER:-})
 E2E_STORAGE_TEST_ENVIRONMENT: $(yaml-quote ${E2E_STORAGE_TEST_ENVIRONMENT:-})
 KUBE_IMAGE_TAG: $(yaml-quote ${KUBE_IMAGE_TAG:-})
 KUBE_DOCKER_REGISTRY: $(yaml-quote ${KUBE_DOCKER_REGISTRY:-})

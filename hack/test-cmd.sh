@@ -635,6 +635,9 @@ runTests() {
   # Post-condition: valid-pod POD is created
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'valid-pod:'
 
+  ## Patch can modify a local object
+  kubectl patch --local -f pkg/api/validation/testdata/v1/validPod.yaml --patch='{"spec": {"restartPolicy":"Never"}}' -o jsonpath='{.spec.restartPolicy}' | grep -q "Never"
+
   ## Patch pod can change image
   # Command
   kubectl patch "${kube_flags[@]}" pod valid-pod --record -p='{"spec":{"containers":[{"name": "kubernetes-serve-hostname", "image": "nginx"}]}}'
@@ -902,6 +905,18 @@ __EOF__
   kubectl delete hpa frontend "${kube_flags[@]}"
   kubectl delete rc  frontend "${kube_flags[@]}"
 
+  ## kubectl create should not panic on empty string lists in a template
+  ERROR_FILE="${KUBE_TEMP}/validation-error"
+  kubectl create -f hack/testdata/invalid-rc-with-empty-args.yaml "${kube_flags[@]}" 2> "${ERROR_FILE}" || true
+  # Post-condition: should get an error reporting the empty string
+  if grep -q "unexpected nil value for field" "${ERROR_FILE}"; then
+    kube::log::status "\"kubectl create with empty string list returns error as expected: $(cat ${ERROR_FILE})"
+  else
+    kube::log::status "\"kubectl create with empty string list returns unexpected error or non-error: $(cat ${ERROR_FILE})"
+    exit 1
+  fi
+  rm "${ERROR_FILE}"
+
   ## kubectl apply should create the resource that doesn't exist yet
   # Pre-Condition: no POD exists
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" ''
@@ -1025,6 +1040,19 @@ __EOF__
   # Post-condition: busybox0 & busybox1 PODs are created, and since busybox2 is malformed, it should error
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'busybox0:busybox1:'
   kube::test::if_has_string "${output_message}" 'error validating data: kind not set'
+
+  ## Edit multiple busybox PODs by updating the image field of multiple PODs recursively from a directory. tmp-editor.sh is a fake editor
+  # Pre-condition: busybox0 & busybox1 PODs exist
+  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'busybox0:busybox1:'
+  # Command
+  echo -e '#!/bin/bash\nsed -i "s/image: busybox/image: prom\/busybox/g" $1' > /tmp/tmp-editor.sh
+  chmod +x /tmp/tmp-editor.sh
+  output_message=$(! EDITOR=/tmp/tmp-editor.sh kubectl edit -f hack/testdata/recursive/pod --recursive 2>&1 "${kube_flags[@]}")
+  # Post-condition: busybox0 & busybox1 PODs are edited, and since busybox2 is malformed, it should error
+  kube::test::get_object_assert pods "{{range.items}}{{$image_field}}:{{end}}" 'prom/busybox:prom/busybox:'
+  kube::test::if_has_string "${output_message}" "Object 'Kind' is missing"
+  # cleaning
+  rm /tmp/tmp-editor.sh
 
   ## Replace multiple busybox PODs recursively from directory of YAML files
   # Pre-condition: busybox0 & busybox1 PODs exist
@@ -1772,35 +1800,35 @@ __EOF__
   # Command
   # Create a deployment (revision 1)
   kubectl create -f hack/testdata/deployment-revision1.yaml "${kube_flags[@]}"
-  kube::test::get_object_assert deployment "{{range.items}}{{$id_field}}:{{end}}" 'nginx-deployment:'
+  kube::test::get_object_assert deployment "{{range.items}}{{$id_field}}:{{end}}" 'nginx:'
   kube::test::get_object_assert deployment "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R1}:"
   # Rollback to revision 1 - should be no-op
-  kubectl rollout undo deployment nginx-deployment --to-revision=1 "${kube_flags[@]}"
+  kubectl rollout undo deployment nginx --to-revision=1 "${kube_flags[@]}"
   kube::test::get_object_assert deployment "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R1}:"
   # Update the deployment (revision 2)
   kubectl apply -f hack/testdata/deployment-revision2.yaml "${kube_flags[@]}"
   kube::test::get_object_assert deployment.extensions "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R2}:"
   # Rollback to revision 1
-  kubectl rollout undo deployment nginx-deployment --to-revision=1 "${kube_flags[@]}"
+  kubectl rollout undo deployment nginx --to-revision=1 "${kube_flags[@]}"
   sleep 1
   kube::test::get_object_assert deployment "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R1}:"
   # Rollback to revision 1000000 - should be no-op
-  kubectl rollout undo deployment nginx-deployment --to-revision=1000000 "${kube_flags[@]}"
+  kubectl rollout undo deployment nginx --to-revision=1000000 "${kube_flags[@]}"
   kube::test::get_object_assert deployment "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R1}:"
   # Rollback to last revision
-  kubectl rollout undo deployment nginx-deployment "${kube_flags[@]}"
+  kubectl rollout undo deployment nginx "${kube_flags[@]}"
   sleep 1
   kube::test::get_object_assert deployment "{{range.items}}{{$deployment_image_field}}:{{end}}" "${IMAGE_DEPLOYMENT_R2}:"
   # Pause the deployment
-  kubectl-with-retry rollout pause deployment nginx-deployment "${kube_flags[@]}"
+  kubectl-with-retry rollout pause deployment nginx "${kube_flags[@]}"
   # A paused deployment cannot be rolled back
-  ! kubectl rollout undo deployment nginx-deployment "${kube_flags[@]}"
+  ! kubectl rollout undo deployment nginx "${kube_flags[@]}"
   # Resume the deployment
-  kubectl-with-retry rollout resume deployment nginx-deployment "${kube_flags[@]}"
+  kubectl-with-retry rollout resume deployment nginx "${kube_flags[@]}"
   # The resumed deployment can now be rolled back
-  kubectl rollout undo deployment nginx-deployment "${kube_flags[@]}"
+  kubectl rollout undo deployment nginx "${kube_flags[@]}"
   # Clean up
-  kubectl delete deployment nginx-deployment "${kube_flags[@]}"
+  kubectl delete deployment nginx "${kube_flags[@]}"
 
   ### Set image of a deployment 
   # Pre-condition: no deployment exists
@@ -2031,7 +2059,7 @@ __EOF__
     fi
     kubectl describe -f "${file}" "${kube_flags[@]}"
     # Command
-    kubectl replace -f $replace_file --force "${kube_flags[@]}"
+    kubectl replace -f $replace_file --force --cascade "${kube_flags[@]}"
     # Post-condition: mock service (and mock2) and mock rc (and mock2) are replaced
     if [ "$has_svc" = true ]; then
       kube::test::get_object_assert 'services mock' "{{${labels_field}.status}}" 'replaced'
