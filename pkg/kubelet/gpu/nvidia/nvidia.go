@@ -50,7 +50,7 @@ func (nvidiaGPU *NvidiaGPU) InitPlugin() error {
 	}
 
 	for _, path := range allPaths {
-		nvidiaGPU.gpuInfo = append(nvidiaGPU.gpuInfo, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUFree})
+		nvidiaGPU.gpuInfo = append(nvidiaGPU.gpuInfo, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUFree, ContainerID: ""})
 	}
 
 	return nil
@@ -124,5 +124,31 @@ func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) (allocPaths []string) {
 	return
 }
 
-func (nvidiaGPU *NvidiaGPU) FreeGPU() {
+func (nvidiaGPU *NvidiaGPU) UpdateContainerID(containerID string, Paths []string) {
+	for _, path := range Paths {
+		for _, gpuItem := range nvidiaGPU.gpuInfo {
+			if path == gpuItem.Path {
+				gpuItem.ContainerID = containerID
+			}
+		}
+	}
+}
+
+func (nvidiaGPU *NvidiaGPU) FreeGPUByContainer(containerID string) {
+	for _, gpuItem := range nvidiaGPU.gpuInfo {
+		if gpuItem.ContainerID == containerID {
+			gpuItem.Status = gpuTypes.GPUFree
+		}
+	}
+}
+
+func (nvidiaGPU *NvidiaGPU) FreeGPUByPaths(paths []string) {
+	for _, path := range paths {
+		for _, gpuItem := range nvidiaGPU.gpuInfo {
+			if gpuItem.Path == path {
+				gpuItem.Status = gpuTypes.GPUFree
+				continue
+			}
+		}
+	}
 }

@@ -612,10 +612,11 @@ func (dm *DockerManager) runContainer(
 		cpuShares = milliCPUToShares(cpuRequest.MilliValue())
 	}
 	var devices []dockercontainer.DeviceMapping
+	var nvidiaGPUPaths []string
+	nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
 	if nvidiaGPULimit.Value() != 0 {
-		nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
 		if nvidiaGPUPlugin != nil {
-			nvidiaGPUPaths := nvidiaGPUPlugin.AllocateGPU(int(nvidiaGPULimit.Value()))
+			nvidiaGPUPaths = nvidiaGPUPlugin.AllocateGPU(int(nvidiaGPULimit.Value()))
 			if nvidiaGPUPaths != nil {
 				devices = []dockercontainer.DeviceMapping{
 					{nvidia.NvidiaDeviceCtl, nvidia.NvidiaDeviceCtl, "mrw"},
@@ -628,6 +629,7 @@ func (dm *DockerManager) runContainer(
 			}
 		}
 	}
+
 	podHasSELinuxLabel := pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SELinuxOptions != nil
 	binds := makeMountBindings(opts.Mounts, podHasSELinuxLabel)
 	// The reason we create and mount the log file in here (not in kubelet) is because
@@ -718,6 +720,7 @@ func (dm *DockerManager) runContainer(
 	createResp, err := dm.client.CreateContainer(dockerOpts)
 	if err != nil {
 		dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToCreateContainer, "Failed to create docker container with error: %v", err)
+		nvidiaGPUPlugin.FreeGPUByPaths(nvidiaGPUPaths)
 		return kubecontainer.ContainerID{}, err
 	}
 	if len(createResp.Warnings) != 0 {
@@ -728,9 +731,12 @@ func (dm *DockerManager) runContainer(
 	if err = dm.client.StartContainer(createResp.ID); err != nil {
 		dm.recorder.Eventf(ref, api.EventTypeWarning, kubecontainer.FailedToStartContainer,
 			"Failed to start container with docker id %v with error: %v", utilstrings.ShortenString(createResp.ID, 12), err)
+		nvidiaGPUPlugin.FreeGPUByPaths(nvidiaGPUPaths)
 		return kubecontainer.ContainerID{}, err
 	}
 	dm.recorder.Eventf(ref, api.EventTypeNormal, kubecontainer.StartedContainer, "Started container with docker id %v", utilstrings.ShortenString(createResp.ID, 12))
+
+	nvidiaGPUPlugin.UpdateContainerID(kubecontainer.DockerID(createResp.ID).ContainerID().ID, nvidiaGPUPaths)
 
 	return kubecontainer.DockerID(createResp.ID).ContainerID(), nil
 }
@@ -1394,6 +1400,14 @@ func (dm *DockerManager) killContainer(containerID kubecontainer.ContainerID, co
 		dm.recorder.Event(ref, api.EventTypeNormal, kubecontainer.KillingContainer, message)
 		dm.containerRefManager.ClearRef(containerID)
 	}
+
+	if err == nil {
+		nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+		if nvidiaGPUPlugin != nil {
+			nvidiaGPUPlugin.FreeGPUByContainer(containerID.ID)
+		}
+	}
+
 	return err
 }
 

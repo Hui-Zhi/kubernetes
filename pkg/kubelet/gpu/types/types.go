@@ -12,8 +12,9 @@ const (
 )
 
 type GPUDevice struct {
-	Path   string
-	Status string
+	ContainerID string
+	Path        string
+	Status      string
 }
 
 type GPUPlugin interface {
@@ -23,5 +24,7 @@ type GPUPlugin interface {
 	AvailableGPUs() int
 	Vendor() string
 	AllocateGPU(int) []string
-	FreeGPU()
+	UpdateContainerID(string, []string)
+	FreeGPUByContainer(string)
+	FreeGPUByPaths([]string)
 }
