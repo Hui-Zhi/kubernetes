@@ -12,8 +12,8 @@ import (
 
 const (
 	Vendor          string = "NVIDIA"
-	NvidiaDeviceCtl string = "/dev/nvidia/nvidiactl"
-	NvidiaDeviceUVM string = "/dev/nvidia/nvidia-uvm"
+	NvidiaDeviceCtl string = "/dev/nvidiactl"
+	NvidiaDeviceUVM string = "/dev/nvidia-uvm"
 )
 
 type NvidiaGPU struct {
