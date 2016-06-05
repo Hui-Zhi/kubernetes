@@ -2768,10 +2768,7 @@ func ValidateResourceRequirements(requirements *api.ResourceRequirements, fldPat
 		// Check that request <= limit.
 		requestQuantity, exists := requirements.Requests[resourceName]
 		if exists {
-			// For GPUs, require that no request be set.
-			//			if resourceName == api.ResourceNvidiaGPU {
-			//				allErrs = append(allErrs, field.Invalid(reqPath, requestQuantity.String(), "cannot be set"))
-			/*} else*/ if quantity.Cmp(requestQuantity) < 0 {
+			if quantity.Cmp(requestQuantity) < 0 {
 				allErrs = append(allErrs, field.Invalid(fldPath, quantity.String(), "must be greater than or equal to request"))
 			}
 		}
