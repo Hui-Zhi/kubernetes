@@ -21,6 +21,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/network"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
@@ -29,7 +30,6 @@ import (
 	"k8s.io/kubernetes/pkg/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/util/oom"
 	"k8s.io/kubernetes/pkg/util/procfs"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
 func NewFakeDockerManager(
@@ -44,7 +44,7 @@ func NewFakeDockerManager(
 	containerLogsDir string,
 	osInterface kubecontainer.OSInterface,
 	networkPlugin network.NetworkPlugin,
-	gpuPlugins []gpuTypes.GPUPlugin,
+	gpuPlugins []gputypes.GPUPlugin,
 	runtimeHelper kubecontainer.RuntimeHelper,
 	httpClient kubetypes.HttpGetter, imageBackOff *flowcontrol.Backoff) *DockerManager {
 

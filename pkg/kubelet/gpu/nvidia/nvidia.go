@@ -1,26 +1,22 @@
 package nvidia
 
 import (
-	//	"fmt"
-	//	"strings"
-	//	"github.com/golang/glog"
-	//	"k8s.io/kubernetes/pkg/api"
-	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
-	//	"k8s.io/kubernets/pkg/types"
+	gpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
 const (
-	Vendor          string = "NVIDIA"
+	Vendor string = "NVIDIA"
+	// All NVIDIA GPUs cards should be mounted with nvidiactl and nvidia-uvm
 	NvidiaDeviceCtl string = "/dev/nvidiactl"
 	NvidiaDeviceUVM string = "/dev/nvidia-uvm"
 )
 
 type NvidiaGPU struct {
-	gpuInfo []gpuTypes.GPUDevice
+	gpuInfo []gputypes.GPUDevice
 }
 
-func ProbePlugin() (gpuTypes.GPUPlugin, error) {
+func ProbePlugin() (gputypes.GPUPlugin, error) {
 	var nvidiaGPU NvidiaGPU
 
 	err := nvidiaGPU.InitPlugin()
@@ -32,44 +28,47 @@ func ProbePlugin() (gpuTypes.GPUPlugin, error) {
 	return &nvidiaGPU, nil
 }
 
+// Get the vendor information.
 func (nvidiaGPU *NvidiaGPU) Vendor() string {
 	return Vendor
 }
 
 func (nvidiaGPU *NvidiaGPU) InitPlugin() error {
-	err := gpuUtil.NVMLInit()
+	err := gpuutil.NVMLInit()
 
 	if err != nil {
-		return nil
+		return err
 	}
 
 	allPaths, err := nvidiaGPU.discovery()
 
 	if err != nil {
-		return nil
+		return err
 	}
 
+	// Initialize the Nvidia device information.
 	for _, path := range allPaths {
-		nvidiaGPU.gpuInfo = append(nvidiaGPU.gpuInfo, gpuTypes.GPUDevice{Path: path, Status: gpuTypes.GPUFree, ContainerID: ""})
+		nvidiaGPU.gpuInfo = append(nvidiaGPU.gpuInfo, gputypes.GPUDevice{Path: path, Status: gputypes.GPUFree, ContainerID: ""})
 	}
 
 	return nil
 }
 
 func (nvidiaGPU *NvidiaGPU) ReleasePlugin() error {
-	err := gpuUtil.NVMLShutdown()
+	err := gpuutil.NVMLShutdown()
 
 	if err != nil {
-		return nil
+		return err
 	}
 
 	nvidiaGPU.gpuInfo = nil
 
-	return gpuUtil.NVMLShutdown()
+	return gpuutil.NVMLShutdown()
 }
 
+// Get all the NVIDIA GPU cards' path from /dev/
 func (nvidiaGPU *NvidiaGPU) discovery() ([]string, error) {
-	gpuCount, err := gpuUtil.GetDeviceCount()
+	gpuCount, err := gpuutil.GetDeviceCount()
 
 	if err != nil {
 		return nil, err
@@ -82,7 +81,7 @@ func (nvidiaGPU *NvidiaGPU) discovery() ([]string, error) {
 	var allPaths []string
 	var i uint
 	for i = 0; i < gpuCount; i++ {
-		path, err := gpuUtil.GetDevicePath(i)
+		path, err := gpuutil.GetDevicePath(i)
 		if err != nil {
 			return nil, err
 		}
@@ -93,14 +92,14 @@ func (nvidiaGPU *NvidiaGPU) discovery() ([]string, error) {
 }
 
 func (nvidiaGPU *NvidiaGPU) Capacity() (int, error) {
-	gpuCount, err := gpuUtil.GetDeviceCount()
+	gpuCount, err := gpuutil.GetDeviceCount()
 	return int(gpuCount), err
 }
 
 func (nvidiaGPU *NvidiaGPU) AvailableGPUs() int {
 	freeGPUs := 0
 	for _, gpuItem := range nvidiaGPU.gpuInfo {
-		if gpuItem.Status == gpuTypes.GPUFree {
+		if gpuItem.Status == gputypes.GPUFree {
 			freeGPUs += 1
 		}
 	}
@@ -115,9 +114,9 @@ func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) (allocPaths []string) {
 	}
 
 	for _, gpuItem := range nvidiaGPU.gpuInfo {
-		if gpuItem.Status == gpuTypes.GPUFree {
+		if gpuItem.Status == gputypes.GPUFree {
 			allocPaths = append(allocPaths, gpuItem.Path)
-			gpuItem.Status = gpuTypes.GPUInUsing
+			gpuItem.Status = gputypes.GPUInUsing
 		}
 	}
 
@@ -137,7 +136,7 @@ func (nvidiaGPU *NvidiaGPU) UpdateContainerID(containerID string, Paths []string
 func (nvidiaGPU *NvidiaGPU) FreeGPUByContainer(containerID string) {
 	for _, gpuItem := range nvidiaGPU.gpuInfo {
 		if gpuItem.ContainerID == containerID {
-			gpuItem.Status = gpuTypes.GPUFree
+			gpuItem.Status = gputypes.GPUFree
 		}
 	}
 }
@@ -146,7 +145,7 @@ func (nvidiaGPU *NvidiaGPU) FreeGPUByPaths(paths []string) {
 	for _, path := range paths {
 		for _, gpuItem := range nvidiaGPU.gpuInfo {
 			if gpuItem.Path == path {
-				gpuItem.Status = gpuTypes.GPUFree
+				gpuItem.Status = gputypes.GPUFree
 				continue
 			}
 		}

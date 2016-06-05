@@ -110,18 +110,18 @@ func NewKubeletServer() *KubeletServer {
 			MaxPerPodContainerCount:      1,
 			MaxOpenFiles:                 1000000,
 			MaxPods:                      110,
-			NvidiaGPUs:                   0,
-			MinimumGCAge:                 unversioned.Duration{Duration: 0},
-			NetworkPluginDir:             "/usr/libexec/kubernetes/kubelet-plugins/net/exec/",
-			NetworkPluginName:            "",
-			NonMasqueradeCIDR:            "10.0.0.0/8",
-			VolumePluginDir:              "/usr/libexec/kubernetes/kubelet-plugins/volume/exec/",
-			NodeStatusUpdateFrequency:    unversioned.Duration{Duration: 10 * time.Second},
-			NodeLabels:                   make(map[string]string),
-			OOMScoreAdj:                  int32(qos.KubeletOOMScoreAdj),
-			LockFilePath:                 "",
-			ExitOnLockContention:         false,
-			PodInfraContainerImage:       GetDefaultPodInfraContainerImage(),
+			//			NvidiaGPUs:                   0,
+			MinimumGCAge:              unversioned.Duration{Duration: 0},
+			NetworkPluginDir:          "/usr/libexec/kubernetes/kubelet-plugins/net/exec/",
+			NetworkPluginName:         "",
+			NonMasqueradeCIDR:         "10.0.0.0/8",
+			VolumePluginDir:           "/usr/libexec/kubernetes/kubelet-plugins/volume/exec/",
+			NodeStatusUpdateFrequency: unversioned.Duration{Duration: 10 * time.Second},
+			NodeLabels:                make(map[string]string),
+			OOMScoreAdj:               int32(qos.KubeletOOMScoreAdj),
+			LockFilePath:              "",
+			ExitOnLockContention:      false,
+			PodInfraContainerImage:    GetDefaultPodInfraContainerImage(),
 			Port:                             ports.KubeletPort,
 			ReadOnlyPort:                     ports.KubeletReadOnlyPort,
 			RegisterNode:                     true, // will be ignored if no apiserver is configured
@@ -243,7 +243,7 @@ func (s *KubeletServer) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.BabysitDaemons, "babysit-daemons", s.BabysitDaemons, "If true, the node has babysitter process monitoring docker and kubelet.")
 	fs.MarkDeprecated("babysit-daemons", "Will be removed in a future version.")
 	fs.Int32Var(&s.MaxPods, "max-pods", s.MaxPods, "Number of Pods that can run on this Kubelet.")
-	fs.Int32Var(&s.NvidiaGPUs, "experimental-nvidia-gpus", s.NvidiaGPUs, "Number of NVIDIA GPU devices on this node. Only 0 (default) and 1 are currently supported.")
+	//	fs.Int32Var(&s.NvidiaGPUs, "experimental-nvidia-gpus", s.NvidiaGPUs, "Number of NVIDIA GPU devices on this node. Only 0 (default) and 1 are currently supported.")
 	fs.StringVar(&s.DockerExecHandlerName, "docker-exec-handler", s.DockerExecHandlerName, "Handler to use when executing a command in a container. Valid values are 'native' and 'nsenter'. Defaults to 'native'.")
 	fs.StringVar(&s.NonMasqueradeCIDR, "non-masquerade-cidr", s.NonMasqueradeCIDR, "Traffic to IPs outside this range will use IP masquerade.")
 	fs.StringVar(&s.PodCIDR, "pod-cidr", "", "The CIDR to use for pod IP addresses, only used in standalone mode.  In cluster mode, this is obtained from the master.")

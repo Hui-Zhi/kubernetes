@@ -57,7 +57,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/envvars"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
 	"k8s.io/kubernetes/pkg/kubelet/gpu"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -756,7 +756,7 @@ type Kubelet struct {
 	maxPods int
 
 	// GPU Information on this node
-	gpuPlugins []gpuTypes.GPUPlugin
+	gpuPlugins []gputypes.GPUPlugin
 
 	// Monitor Kubelet's sync loop
 	syncLoopMonitor atomic.Value
@@ -3015,7 +3015,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 			gpuCount += currCount
 		}
 	}
-	glog.Infof("GPU discover support: gpu count: %v", gpuCount)
+	glog.Infof("Gpu count: %v", gpuCount)
 
 	if err != nil {
 		// TODO(roberthbailey): This is required for test-cmd.sh to pass.

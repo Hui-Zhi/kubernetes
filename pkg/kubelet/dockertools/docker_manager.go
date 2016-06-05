@@ -45,7 +45,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/gpu/nvidia"
-	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/network"
@@ -139,7 +139,7 @@ type DockerManager struct {
 	networkPlugin network.NetworkPlugin
 
 	// GPU plugins.
-	gpuPlugins []gpuTypes.GPUPlugin
+	gpuPlugins []gputypes.GPUPlugin
 
 	// Health check results.
 	livenessManager proberesults.Manager
@@ -213,7 +213,7 @@ func NewDockerManager(
 	containerLogsDir string,
 	osInterface kubecontainer.OSInterface,
 	networkPlugin network.NetworkPlugin,
-	gpuPlugins []gpuTypes.GPUPlugin,
+	gpuPlugins []gputypes.GPUPlugin,
 	runtimeHelper kubecontainer.RuntimeHelper,
 	httpClient types.HttpGetter,
 	execHandler ExecHandler,
@@ -547,7 +547,7 @@ func makePortsAndBindings(portMappings []kubecontainer.PortMapping) (map[dockern
 	return exposedPorts, portBindings
 }
 
-func (dm *DockerManager) GetNvidiaGPUPlugin() gpuTypes.GPUPlugin {
+func (dm *DockerManager) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
 	for _, itemPlugin := range dm.gpuPlugins {
 		if itemPlugin.Vendor() == nvidia.Vendor {
 			return itemPlugin
