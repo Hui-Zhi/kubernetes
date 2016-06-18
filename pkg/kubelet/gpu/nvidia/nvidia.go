@@ -28,18 +28,23 @@ func (nvidiaGPU *NvidiaGPU) Name() string {
 }
 
 func (nvidiaGPU *NvidiaGPU) InitPlugin() error {
+
 }
 
 func (nvidiaGPU *NvidiaGPU) GPUInitPlugin() error {
+
 }
 
 func (nvidiaGPU *NvidiaGPU) ReleasePlugin() error {
+
 }
 
 func (nvidiaGPU *NvidiaGPU) InitGPUEnv() error {
+
 }
 
 func (nvidiaGPU *NvidiaGPU) GetAvailableGPUs() ([]int, error) {
+
 }
 
 	
