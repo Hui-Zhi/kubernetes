@@ -1,4 +1,4 @@
-package gonvml
+package util
 
 // #cgo LDFLAGS: -lnvidia-ml -L /usr/src/gdk/nvml/lib/
 // #include <nvml.h>
