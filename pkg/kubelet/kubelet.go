@@ -98,6 +98,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 	"k8s.io/kubernetes/third_party/golang/expansion"
+	"k8s.io/kubernetes/pkg/kubelet/gpu"
+	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
 const (
@@ -343,7 +345,6 @@ func NewMainKubelet(
 		reconcileCIDR:              reconcileCIDR,
 		maxPods:                    maxPods,
 		podsPerCore:                podsPerCore,
-		nvidiaGPUs:                 nvidiaGPUs,
 		syncLoopMonitor:            atomic.Value{},
 		resolverConfig:             resolverConfig,
 		cpuCFSQuota:                cpuCFSQuota,
@@ -386,6 +387,8 @@ func NewMainKubelet(
 		klet.networkPlugin = plug
 	}
 
+	klet.gpuPlugins = gpu.ProbeGPUPlugins()
+
 	machineInfo, err := klet.GetCachedMachineInfo()
 	if err != nil {
 		return nil, err
@@ -416,6 +419,7 @@ func NewMainKubelet(
 			containerLogsDir,
 			osInterface,
 			klet.networkPlugin,
+			klet.gpuPlugins,
 			klet,
 			klet.httpClient,
 			dockerExecHandler,
@@ -749,8 +753,8 @@ type Kubelet struct {
 	// Maximum Number of Pods which can be run by this Kubelet
 	maxPods int
 
-	// Number of NVIDIA GPUs on this node
-	nvidiaGPUs int
+	// GPU Information on this node
+	gpuPlugins []gpuTypes.GPUPlugin
 
 	// Monitor Kubelet's sync loop
 	syncLoopMonitor atomic.Value
@@ -2988,6 +2992,15 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 	// TODO: Post NotReady if we cannot get MachineInfo from cAdvisor. This needs to start
 	// cAdvisor locally, e.g. for test-cmd.sh, and in integration test.
 	info, err := kl.GetCachedMachineInfo()
+	gpuCount := 0;
+	
+	for _, plugin := range kl.gpuPlugins {
+		currCount, err := plugin.Capacity()
+		if err == nil {
+			gpuCount += currCount
+		}
+	}
+	
 	if err != nil {
 		// TODO(roberthbailey): This is required for test-cmd.sh to pass.
 		// See if the test should be updated instead.
@@ -2995,7 +3008,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 			api.ResourceCPU:       *resource.NewMilliQuantity(0, resource.DecimalSI),
 			api.ResourceMemory:    resource.MustParse("0Gi"),
 			api.ResourcePods:      *resource.NewQuantity(int64(kl.maxPods), resource.DecimalSI),
-			api.ResourceNvidiaGPU: *resource.NewQuantity(int64(kl.nvidiaGPUs), resource.DecimalSI),
+			api.ResourceNvidiaGPU: *resource.NewQuantity(int64(gpuCount), resource.DecimalSI),
 		}
 		glog.Errorf("Error getting machine info: %v", err)
 	} else {
@@ -3010,7 +3023,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 				int64(kl.maxPods), resource.DecimalSI)
 		}
 		node.Status.Capacity[api.ResourceNvidiaGPU] = *resource.NewQuantity(
-			int64(kl.nvidiaGPUs), resource.DecimalSI)
+			int64(gpuCount), resource.DecimalSI)
 		if node.Status.NodeInfo.BootID != "" &&
 			node.Status.NodeInfo.BootID != info.BootID {
 			// TODO: This requires a transaction, either both node status is updated

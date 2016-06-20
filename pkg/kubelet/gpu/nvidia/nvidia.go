@@ -1,14 +1,14 @@
 package nvidia
 
 
-package (
-	"fmt"
-	"strings"
-	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api"
+import (
+//	"fmt"
+//	"strings"
+//	"github.com/golang/glog"
+//	"k8s.io/kubernetes/pkg/api"
 	gpuTypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
-	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/util"
-	"k8s.io/kubernets/pkg/types"
+	gpuUtil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+//	"k8s.io/kubernets/pkg/types"
 )
 
 
@@ -20,7 +20,7 @@ const (
 
 
 type NvidiaGPU struct {
-	gpuInfo GPUTypes.GPUInfo
+	gpuInfo gpuTypes.GPUDevice
 }
 
 func (nvidiaGPU *NvidiaGPU) Name() string {
@@ -28,23 +28,23 @@ func (nvidiaGPU *NvidiaGPU) Name() string {
 }
 
 func (nvidiaGPU *NvidiaGPU) InitPlugin() error {
-
-}
-
-func (nvidiaGPU *NvidiaGPU) GPUInitPlugin() error {
-
+	return gpuUtil.NVMLInit()
 }
 
 func (nvidiaGPU *NvidiaGPU) ReleasePlugin() error {
-
+	return gpuUtil.NVMLShutdown()
 }
 
-func (nvidiaGPU *NvidiaGPU) InitGPUEnv() error {
-
+func (nvidiaGPU *NvidiaGPU) Capacity() int, error {
+	gpuCount, err := gpuUtil.GetDeviceCount()
+	return int(gpuCount), err
 }
 
-func (nvidiaGPU *NvidiaGPU) GetAvailableGPUs() ([]int, error) {
-
+func (nvidiaGPU *NvidiaGPU) AvailableGPUs() ([]int, error) {
+	return nil, nil
 }
 
-	
+func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) ([]gpuTypes.GPUDevice, error) {
+	return nil, nil
+}
+
