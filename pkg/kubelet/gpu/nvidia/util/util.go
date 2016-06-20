@@ -1,9 +1,9 @@
 package util
 
+
 // #cgo LDFLAGS: -lnvidia-ml -L /usr/src/gdk/nvml/lib/
 // #include <nvml.h>
 import "C"
-
 
 import (
 	"fmt"
@@ -13,12 +13,18 @@ const (
 	driverBufferSize = C.NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE
 )
 
-func NVMLInit(){
-	c.nvmlInit()
+func NVMLInit() error {
+	ret := C.nvmlInit()
+
+	if ret == C.NVML_ERROR_LIBRARY_NOT_FOUND {
+		return fmt.Errorf("Could not find NVML library!")
+	}
+
+	return nvmlError(ret)
 }
 
-func NVMLShutdown(){
-	c.nvmlShutdown()
+func NVMLShutdown() error {
+	return nvmlError(C.nvmlShutdown())
 }
 
 func nvmlError(ret C.nvmlReturn_t) error {
@@ -27,6 +33,8 @@ func nvmlError(ret C.nvmlReturn_t) error {
 	}
 
 	err := C.GoString(C.nvmlErrorString(ret))
+
+	return fmt.Errorf("NVML error: %v", err)
 }
 
 func GetDeviceCount() (uint, error) {
@@ -48,7 +56,7 @@ func GetDevicePath(idx uint) (string, error) {
 	}
 
 	err = nvmlError(C.nvmlDeviceGetMinorNumber(dev, &minor))
-	path := fmt.Sprintf("/dev/nvidia%d", uint(mior))
+	path := fmt.Sprintf("/dev/nvidia%d", uint(minor))
 
 	return path, err
 }
