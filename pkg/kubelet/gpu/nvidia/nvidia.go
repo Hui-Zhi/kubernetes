@@ -20,7 +20,7 @@ const (
 
 
 type NvidiaGPU struct {
-	gpuInfo gpuTypes.GPUDevice
+	gpuInfo []gpuTypes.GPUDevice
 }
 
 func (nvidiaGPU *NvidiaGPU) Name() string {
@@ -35,16 +35,44 @@ func (nvidiaGPU *NvidiaGPU) ReleasePlugin() error {
 	return gpuUtil.NVMLShutdown()
 }
 
-func (nvidiaGPU *NvidiaGPU) Capacity() int, error {
+func (nvidiaGPU *NvidiaGPU) Discovery() ([]gpuTypes.GPUDevice, error) {
+	gpuCount, err := gpuUtil.GetDeviceCount()
+
+	if err != nil {
+		return err
+	}
+
+	if gpuCount <= 0 {
+		return nil, nil
+	}
+
+	gpuDevices := []gpuTypes.GPUDevice{}
+
+	for i := 0; i < gpuCount; i++ {
+		path, err := GetDevicePath(i);
+		if err != nil {
+			return nil, err
+		}
+		append(gpuDevices, GPUDevice(Path: path, Status: gpuTypes.GPUUnknow))
+	}
+
+	
+	return gpuDevices, nil
+}
+
+func (nvidiaGPU *NvidiaGPU) Capacity() (int, error) {
 	gpuCount, err := gpuUtil.GetDeviceCount()
 	return int(gpuCount), err
 }
 
-func (nvidiaGPU *NvidiaGPU) AvailableGPUs() ([]int, error) {
-	return nil, nil
+func (nvidiaGPU *NvidiaGPU) AvailableGPUs() (int, error) {
+	return 0, nil
 }
 
-func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) ([]gpuTypes.GPUDevice, error) {
-	return nil, nil
+func (nvidiaGPU *NvidiaGPU) AllocateGPU(number int) error {
+	return nil
+}
+
+func (nvidiaGPU *NvidiaGPU) FreeGPU() {
 }
 
