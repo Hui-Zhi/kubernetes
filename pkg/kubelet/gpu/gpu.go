@@ -9,6 +9,7 @@ import (
 
 
 func ProbeGPUPlugins() []gpuTypes.GPUPlugin {
-	return nil
+	allPlugins := []gpuTypes.GPUPlugin{}
+	return allPlugins
 }
 
