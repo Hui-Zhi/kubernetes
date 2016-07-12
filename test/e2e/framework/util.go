@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
+	deploymentutil "k8s.io/kubernetes/pkg/controller/deployment/util"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
@@ -64,7 +65,6 @@ import (
 	sshutil "k8s.io/kubernetes/pkg/ssh"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
-	deploymentutil "k8s.io/kubernetes/pkg/util/deployment"
 	labelsutil "k8s.io/kubernetes/pkg/util/labels"
 	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -1648,13 +1648,21 @@ func podsRunning(c *client.Client, pods *api.PodList) []error {
 	// are running so non-running pods cause a timeout for this test.
 	By("ensuring each pod is running")
 	e := []error{}
+	error_chan := make(chan error)
+
 	for _, pod := range pods.Items {
-		// TODO: make waiting parallel.
-		err := WaitForPodRunningInNamespace(c, pod.Name, pod.Namespace)
+		go func(p api.Pod) {
+			error_chan <- WaitForPodRunningInNamespace(c, p.Name, p.Namespace)
+		}(pod)
+	}
+
+	for range pods.Items {
+		err := <-error_chan
 		if err != nil {
 			e = append(e, err)
 		}
 	}
+
 	return e
 }
 
@@ -3209,7 +3217,7 @@ func WaitForPodsReady(c *clientset.Clientset, ns, name string, minReadySeconds i
 			return false, nil
 		}
 		for _, pod := range pods.Items {
-			if !deploymentutil.IsPodAvailable(&pod, int32(minReadySeconds)) {
+			if !deploymentutil.IsPodAvailable(&pod, int32(minReadySeconds), time.Now()) {
 				return false, nil
 			}
 		}
@@ -3260,7 +3268,7 @@ func logPodsOfDeployment(c clientset.Interface, deployment *extensions.Deploymen
 	if err == nil {
 		for _, pod := range podList.Items {
 			availability := "not available"
-			if deploymentutil.IsPodAvailable(&pod, minReadySeconds) {
+			if deploymentutil.IsPodAvailable(&pod, minReadySeconds, time.Now()) {
 				availability = "available"
 			}
 			Logf("Pod %s is %s: %+v", pod.Name, availability, pod)

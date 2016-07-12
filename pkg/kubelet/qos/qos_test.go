@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ func newPod(name string, containers []api.Container) *api.Pod {
 	}
 }
 
-func TestGetPodQos(t *testing.T) {
+func TestGetPodQOS(t *testing.T) {
 	testCases := []struct {
 		pod      *api.Pod
 		expected QOSClass
@@ -123,9 +123,15 @@ func TestGetPodQos(t *testing.T) {
 			}),
 			expected: Burstable,
 		},
+		{
+			pod: newPod("burstable", []api.Container{
+				newContainer("burstable", getResourceList("0", "0"), getResourceList("100m", "200Mi")),
+			}),
+			expected: Burstable,
+		},
 	}
 	for _, testCase := range testCases {
-		if actual := GetPodQos(testCase.pod); testCase.expected != actual {
+		if actual := GetPodQOS(testCase.pod); testCase.expected != actual {
 			t.Errorf("invalid qos pod %s, expected: %s, actual: %s", testCase.pod.Name, testCase.expected, actual)
 		}
 	}

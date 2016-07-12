@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016 The Kubernetes Authors All rights reserved.
+# Copyright 2016 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -821,6 +821,12 @@ function start-kube-addons {
     sed -i -e "s@{{ *nanny_memory *}}@${nanny_memory}@g" "${controller_yaml}"
     sed -i -e "s@{{ *metrics_cpu_per_node *}}@${metrics_cpu_per_node}@g" "${controller_yaml}"
   fi
+  if [[ "${ENABLE_CLUSTER_MONITORING:-}" == "influxdb" ]]; then
+    pv_yaml="${dst_dir}/${file_dir}/influxdb-pv.yaml"
+    pd_name="${INSTANCE_PREFIX}-influxdb-pd"
+    remove-salt-config-comments "${pv_yaml}"
+    sed -i -e "s@{{ *pd_name *}}@${pd_name}@g" "${pv_yaml}"
+  fi
   if [[ "${ENABLE_CLUSTER_DNS:-}" == "true" ]]; then
     setup-addon-manifests "addons" "dns"
     local -r dns_rc_file="${dst_dir}/dns/skydns-rc.yaml"
@@ -831,6 +837,20 @@ function start-kube-addons {
     sed -i -e "s@{{ *pillar\['dns_replicas'\] *}}@${DNS_REPLICAS}@g" "${dns_rc_file}"
     sed -i -e "s@{{ *pillar\['dns_domain'\] *}}@${DNS_DOMAIN}@g" "${dns_rc_file}"
     sed -i -e "s@{{ *pillar\['dns_server'\] *}}@${DNS_SERVER_IP}@g" "${dns_svc_file}"
+
+    if [[ "${FEDERATION:-}" == "true" ]]; then
+      local federations_domain_map="${FEDERATIONS_DOMAIN_MAP:-}"
+      if [[ -z "${federations_domain_map}" && -n "${FEDERATION_NAME:-}" && -n "${DNS_ZONE_NAME:-}" ]]; then
+        federations_domain_map="${FEDERATION_NAME}=${DNS_ZONE_NAME}"
+      fi
+      if [[ -n "${federations_domain_map}" ]]; then
+        sed -i -e "s@{{ *pillar\['federations_domain_map'\] *}}@- --federations=${federations_domain_map}@g" "${dns_rc_file}"
+      else
+        sed -i -e "/{{ *pillar\['federations_domain_map'\] *}}/d" "${dns_rc_file}"
+      fi
+    else
+      sed -i -e "/{{ *pillar\['federations_domain_map'\] *}}/d" "${dns_rc_file}"
+    fi
   fi
   if [[ "${ENABLE_CLUSTER_REGISTRY:-}" == "true" ]]; then
     setup-addon-manifests "addons" "registry"

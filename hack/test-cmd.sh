@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # This command checks that the built commands can function together for
-# simple scenarios.  It does not require Docker so it can run in travis.
+# simple scenarios.  It does not require Docker.
 
 set -o errexit
 set -o nounset
@@ -565,7 +565,7 @@ runTests() {
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" ''
   # Command
   kubectl create -f docs/admin/limitrange/valid-pod.yaml "${kube_flags[@]}"
-  kubectl create -f examples/redis/redis-proxy.yaml "${kube_flags[@]}"
+  kubectl create -f examples/storage/redis/redis-proxy.yaml "${kube_flags[@]}"
   # Post-condition: valid-pod and redis-proxy PODs are created
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'redis-proxy:valid-pod:'
 
@@ -975,6 +975,20 @@ __EOF__
   # Post-condition: POD abc should error since it doesn't exist
   kube::test::if_has_string "${output_message}" 'pods "abc" not found'
 
+  ### Test retrieval of non-existing POD with json output flag specified
+  # Pre-condition: no POD exists
+  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" ''
+  # Command
+  output_message=$(! kubectl get pods abc 2>&1 "${kube_flags[@]}" -o json)
+  # Post-condition: POD abc should error since it doesn't exist
+  kube::test::if_has_string "${output_message}" 'pods "abc" not found'
+  # Post-condition: make sure we don't display an empty List
+  if kube::test::if_has_string "${output_message}" 'List'; then
+    echo 'Unexpected List output'
+    echo "${LINENO} $(basename $0)"
+    exit 1
+  fi
+
   #####################################
   # Third Party Resources             #
   #####################################
@@ -1354,6 +1368,30 @@ __EOF__
   kube::test::get_object_assert 'secret/test-secret --namespace=test-secrets' "{{$secret_type}}" 'kubernetes.io/tls'
   # Clean-up
   kubectl delete secret test-secret --namespace=test-secrets
+
+  # Create a secret using stringData
+  kubectl create --namespace=test-secrets -f - "${kube_flags[@]}" << __EOF__
+{
+  "kind": "Secret",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "secret-string-data"
+  },
+  "data": {
+    "k1":"djE=",
+    "k2":""
+  },
+  "stringData": {
+    "k2":"v2"
+  }
+}
+__EOF__
+  # Post-condition: secret-string-data secret is created with expected data, merged/overridden data from stringData, and a cleared stringData field
+  kube::test::get_object_assert 'secret/secret-string-data --namespace=test-secrets ' '{{.data}}' '.*k1:djE=.*'
+  kube::test::get_object_assert 'secret/secret-string-data --namespace=test-secrets ' '{{.data}}' '.*k2:djI=.*'
+  kube::test::get_object_assert 'secret/secret-string-data --namespace=test-secrets ' '{{.stringData}}' '<no value>'
+  # Clean up
+  kubectl delete secret secret-string-data --namespace=test-secrets
 
   ### Create a secret using output flags
   # Pre-condition: no secret exists
@@ -2249,8 +2287,8 @@ __EOF__
   #####################
 
   kube::log::status "Testing resource aliasing"
-  kubectl create -f examples/cassandra/cassandra-controller.yaml "${kube_flags[@]}"
-  kubectl create -f examples/cassandra/cassandra-service.yaml "${kube_flags[@]}"
+  kubectl create -f examples/storage/cassandra/cassandra-controller.yaml "${kube_flags[@]}"
+  kubectl create -f examples/storage/cassandra/cassandra-service.yaml "${kube_flags[@]}"
 
   object="all -l'app=cassandra'"
   request="{{range.items}}{{range .metadata.labels}}{{.}}:{{end}}{{end}}"

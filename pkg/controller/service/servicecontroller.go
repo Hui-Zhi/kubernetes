@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ func (s *ServiceController) Run(serviceSyncPeriod, nodeSyncPeriod time.Duration)
 		return err
 	}
 
-	// We have to make this check beecause the ListWatch that we use in
+	// We have to make this check because the ListWatch that we use in
 	// WatchServices requires Client functions that aren't in the interface
 	// for some reason.
 	if _, ok := s.kubeClient.(*clientset.Clientset); !ok {
@@ -641,7 +641,7 @@ func hostsFromNodeList(list *api.NodeList) []string {
 }
 
 func getNodeConditionPredicate() cache.NodeConditionPredicate {
-	return func(node api.Node) bool {
+	return func(node *api.Node) bool {
 		// We add the master to the node list, but its unschedulable.  So we use this to filter
 		// the master.
 		// TODO: Use a node annotation to indicate the master

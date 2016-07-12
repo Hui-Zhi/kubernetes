@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ const (
 	pausePodName             = "pause"
 	runJobTimeout            = 5 * time.Minute
 	busyboxImage             = "gcr.io/google_containers/busybox:1.24"
-	nginxImage               = "gcr.io/google_containers/nginx:1.7.9"
+	nginxImage               = "gcr.io/google_containers/nginx-slim:0.7"
 	kubeCtlManifestPath      = "test/e2e/testing-manifests/kubectl"
 	redisControllerFilename  = "redis-master-controller.json"
 	redisServiceFilename     = "redis-master-service.json"
@@ -1036,6 +1036,54 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 			}
 			if pod.Spec.RestartPolicy != api.RestartPolicyNever {
 				framework.Failf("Failed creating a pod with correct restart policy for --restart=Never")
+			}
+		})
+	})
+
+	framework.KubeDescribe("Kubectl replace", func() {
+		var nsFlag string
+		var podName string
+
+		BeforeEach(func() {
+			nsFlag = fmt.Sprintf("--namespace=%v", ns)
+			podName = "e2e-test-nginx-pod"
+		})
+
+		AfterEach(func() {
+			framework.RunKubectlOrDie("delete", "pods", podName, nsFlag)
+		})
+
+		It("should update a single-container pod's image [Conformance]", func() {
+			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
+
+			By("running the image " + nginxImage)
+			framework.RunKubectlOrDie("run", podName, "--generator=run-pod/v1", "--image="+nginxImage, "--labels=run="+podName, nsFlag)
+
+			By("verifying the pod " + podName + " is running")
+			label := labels.SelectorFromSet(labels.Set(map[string]string{"run": podName}))
+			err := framework.WaitForPodsWithLabelRunning(c, ns, label)
+			if err != nil {
+				framework.Failf("Failed getting pod %s: %v", podName, err)
+			}
+
+			By("verifying the pod " + podName + " was created")
+			podJson := framework.RunKubectlOrDie("get", "pod", podName, nsFlag, "-o", "json")
+			if !strings.Contains(podJson, podName) {
+				framework.Failf("Failed to find pod %s in [%s]", podName, podJson)
+			}
+
+			By("replace the image in the pod")
+			podJson = strings.Replace(podJson, nginxImage, busyboxImage, 1)
+			framework.RunKubectlOrDieInput(podJson, "replace", "-f", "-", nsFlag)
+
+			By("verifying the pod " + podName + " has the right image " + busyboxImage)
+			pod, err := c.Pods(ns).Get(podName)
+			if err != nil {
+				framework.Failf("Failed getting deployment %s: %v", podName, err)
+			}
+			containers := pod.Spec.Containers
+			if containers == nil || len(containers) != 1 || containers[0].Image != busyboxImage {
+				framework.Failf("Failed creating pod with expected image %s", busyboxImage)
 			}
 		})
 	})

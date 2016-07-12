@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -451,6 +451,7 @@ network_policy_provider: '$(echo "$NETWORK_POLICY_PROVIDER" | sed -e "s/'/''/g")
 enable_manifest_url: '$(echo "${ENABLE_MANIFEST_URL:-}" | sed -e "s/'/''/g")'
 manifest_url: '$(echo "${MANIFEST_URL:-}" | sed -e "s/'/''/g")'
 manifest_url_header: '$(echo "${MANIFEST_URL_HEADER:-}" | sed -e "s/'/''/g")'
+master_name: '$(echo "${MASTER_NAME:-}" | sed -e "s/'/''/g")'
 num_nodes: $(echo "${NUM_NODES:-}" | sed -e "s/'/''/g")
 e2e_storage_test_environment: '$(echo "$E2E_STORAGE_TEST_ENVIRONMENT" | sed -e "s/'/''/g")'
 kube_uid: '$(echo "${KUBE_UID}" | sed -e "s/'/''/g")'
@@ -550,7 +551,25 @@ enable_cluster_autoscaler: '$(echo "${ENABLE_CLUSTER_AUTOSCALER}" | sed -e "s/'/
 autoscaler_mig_config: '$(echo "${AUTOSCALER_MIG_CONFIG}" | sed -e "s/'/''/g")'
 EOF
     fi
-
+    if [[ "${FEDERATION:-}" == "true" ]]; then
+      local federations_domain_map="${FEDERATIONS_DOMAIN_MAP:-}"
+      if [[ -z "${federations_domain_map}" && -n "${FEDERATION_NAME:-}" && -n "${DNS_ZONE_NAME:-}" ]]; then
+        federations_domain_map="${FEDERATION_NAME}=${DNS_ZONE_NAME}"
+      fi
+      if [[ -n "${federations_domain_map}" ]]; then
+        cat <<EOF >>/srv/salt-overlay/pillar/cluster-params.sls
+federations_domain_map: '$(echo "- --federations=${federations_domain_map}" | sed -e "s/'/''/g")'
+EOF
+      else
+        cat <<EOF >>/srv/salt-overlay/pillar/cluster-params.sls
+federations_domain_map: ''
+EOF
+      fi
+    else
+      cat <<EOF >>/srv/salt-overlay/pillar/cluster-params.sls
+federations_domain_map: ''
+EOF
+    fi
 }
 
 # The job of this function is simple, but the basic regular expression syntax makes

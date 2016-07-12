@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ func hasStatus(t *types.Type) bool {
 func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w io.Writer) error {
 	sw := generator.NewSnippetWriter(w, c, "$", "$")
 	pkg := filepath.Base(t.Name.Package)
-	namespaced := !(types.ExtractCommentTags("+", t.SecondClosestCommentLines)["nonNamespaced"] == "true")
+	namespaced := !extractBoolTagOrDie("nonNamespaced", t.SecondClosestCommentLines)
 	m := map[string]interface{}{
 		"type":              t,
 		"package":           pkg,
@@ -86,7 +86,7 @@ func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w i
 	} else {
 		sw.Do(getterNonNamesapced, m)
 	}
-	noMethods := types.ExtractCommentTags("+", t.SecondClosestCommentLines)["noMethods"] == "true"
+	noMethods := extractBoolTagOrDie("noMethods", t.SecondClosestCommentLines) == true
 
 	sw.Do(interfaceTemplate1, m)
 	if !noMethods {

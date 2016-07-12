@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,13 @@ package predicates
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"k8s.io/kubernetes/cmd/libs/go2idl/parser"
+	"k8s.io/kubernetes/cmd/libs/go2idl/types"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/util/codeinspector"
@@ -197,11 +200,19 @@ func TestPodFitsResources(t *testing.T) {
 			wErr: nil,
 		},
 		{
+			pod: newResourcePod(resourceRequest{milliCPU: 2, memory: 1}),
+			nodeInfo: schedulercache.NewNodeInfo(
+				newResourcePod(resourceRequest{milliCPU: 9, memory: 5})),
+			fits: false,
+			test: "one resource memory fits",
+			wErr: newInsufficientResourceError(cpuResourceName, 2, 9, 10),
+		},
+		{
 			pod: newResourcePod(resourceRequest{milliCPU: 1, memory: 2}),
 			nodeInfo: schedulercache.NewNodeInfo(
 				newResourcePod(resourceRequest{milliCPU: 5, memory: 19})),
 			fits: false,
-			test: "one resources fits",
+			test: "one resource cpu fits",
 			wErr: newInsufficientResourceError(memoryResourceName, 2, 19, 20),
 		},
 		{
@@ -226,7 +237,7 @@ func TestPodFitsResources(t *testing.T) {
 		node := api.Node{Status: api.NodeStatus{Capacity: makeResources(10, 20, 0, 32).Capacity, Allocatable: makeAllocatableResources(10, 20, 0, 32)}}
 		test.nodeInfo.SetNode(&node)
 
-		fits, err := PodFitsResources(test.pod, test.nodeInfo)
+		fits, err := PodFitsResources(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, test.wErr) {
 			t.Errorf("%s: unexpected error: %v, want: %v", test.test, err, test.wErr)
 		}
@@ -279,7 +290,7 @@ func TestPodFitsResources(t *testing.T) {
 		node := api.Node{Status: api.NodeStatus{Capacity: api.ResourceList{}, Allocatable: makeAllocatableResources(10, 20, 0, 1)}}
 		test.nodeInfo.SetNode(&node)
 
-		fits, err := PodFitsResources(test.pod, test.nodeInfo)
+		fits, err := PodFitsResources(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, test.wErr) {
 			t.Errorf("%s: unexpected error: %v, want: %v", test.test, err, test.wErr)
 		}
@@ -335,7 +346,7 @@ func TestPodFitsHost(t *testing.T) {
 	for _, test := range tests {
 		nodeInfo := schedulercache.NewNodeInfo()
 		nodeInfo.SetNode(test.node)
-		result, err := PodFitsHost(test.pod, nodeInfo)
+		result, err := PodFitsHost(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if !reflect.DeepEqual(err, ErrPodNotMatchHostName) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -408,7 +419,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		fits, err := PodFitsHostPorts(test.pod, test.nodeInfo)
+		fits, err := PodFitsHostPorts(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, ErrPodNotFitsHostPorts) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -493,7 +504,7 @@ func TestDiskConflicts(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ok, err := NoDiskConflict(test.pod, test.nodeInfo)
+		ok, err := NoDiskConflict(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, ErrDiskConflict) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -545,7 +556,7 @@ func TestAWSDiskConflicts(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ok, err := NoDiskConflict(test.pod, test.nodeInfo)
+		ok, err := NoDiskConflict(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, ErrDiskConflict) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -603,7 +614,7 @@ func TestRBDDiskConflicts(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ok, err := NoDiskConflict(test.pod, test.nodeInfo)
+		ok, err := NoDiskConflict(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, ErrDiskConflict) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -719,7 +730,7 @@ func TestPodFitsSelector(t *testing.T) {
 								"matchExpressions": [{
 									"key": "kernel-version",
 									"operator": "Gt",
-									"values": ["2.4"]
+									"values": ["0204"]
 								}]
 							}]
 						}}}`,
@@ -727,7 +738,8 @@ func TestPodFitsSelector(t *testing.T) {
 				},
 			},
 			labels: map[string]string{
-				"kernel-version": "2.6",
+				// We use two digit to denote major version and two digit for minior version.
+				"kernel-version": "0206",
 			},
 			fits: true,
 			test: "Pod with matchExpressions using Gt operator that matches the existing node",
@@ -1081,7 +1093,7 @@ func TestPodFitsSelector(t *testing.T) {
 		nodeInfo := schedulercache.NewNodeInfo()
 		nodeInfo.SetNode(&node)
 
-		fits, err := PodSelectorMatches(test.pod, nodeInfo)
+		fits, err := PodSelectorMatches(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if !reflect.DeepEqual(err, ErrNodeSelectorNotMatch) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -1146,7 +1158,7 @@ func TestNodeLabelPresence(t *testing.T) {
 		nodeInfo.SetNode(&node)
 
 		labelChecker := NodeLabelChecker{test.labels, test.presence}
-		fits, err := labelChecker.CheckNodeLabelPresence(test.pod, nodeInfo)
+		fits, err := labelChecker.CheckNodeLabelPresence(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if !reflect.DeepEqual(err, ErrNodeLabelPresenceViolated) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -1291,7 +1303,7 @@ func TestServiceAffinity(t *testing.T) {
 		serviceAffinity := ServiceAffinity{algorithm.FakePodLister(test.pods), algorithm.FakeServiceLister(test.services), FakeNodeListInfo(nodes), test.labels}
 		nodeInfo := schedulercache.NewNodeInfo()
 		nodeInfo.SetNode(test.node)
-		fits, err := serviceAffinity.CheckServiceAffinity(test.pod, nodeInfo)
+		fits, err := serviceAffinity.CheckServiceAffinity(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if !reflect.DeepEqual(err, ErrServiceAffinityViolated) && err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -1572,7 +1584,7 @@ func TestEBSVolumeCountConflicts(t *testing.T) {
 
 	for _, test := range tests {
 		pred := NewMaxPDVolumeCountPredicate(filter, test.maxVols, pvInfo, pvcInfo)
-		fits, err := pred(test.newPod, schedulercache.NewNodeInfo(test.existingPods...))
+		fits, err := pred(test.newPod, PredicateMetadata(test.newPod), schedulercache.NewNodeInfo(test.existingPods...))
 		if err != nil && !reflect.DeepEqual(err, ErrMaxVolumeCountExceeded) {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -1583,8 +1595,26 @@ func TestEBSVolumeCountConflicts(t *testing.T) {
 	}
 }
 
+func getPredicateSignature() (*types.Signature, error) {
+	filePath := "./../types.go"
+	pkgName := filepath.Dir(filePath)
+	builder := parser.New()
+	if err := builder.AddDir(pkgName); err != nil {
+		return nil, err
+	}
+	universe, err := builder.FindTypes()
+	if err != nil {
+		return nil, err
+	}
+	result, ok := universe[pkgName].Types["FitPredicate"]
+	if !ok {
+		return nil, fmt.Errorf("FitPredicate type not defined")
+	}
+	return result.Signature, nil
+}
+
 func TestPredicatesRegistered(t *testing.T) {
-	var functionNames []string
+	var functions []*types.Type
 
 	// Files and directories which predicates may be referenced
 	targetFiles := []string{
@@ -1602,27 +1632,42 @@ func TestPredicatesRegistered(t *testing.T) {
 
 	// Get all public predicates in files.
 	for _, filePath := range files {
-		functions, err := codeinspector.GetPublicFunctions(filePath)
+		fileFunctions, err := codeinspector.GetPublicFunctions("k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates", filePath)
 		if err == nil {
-			functionNames = append(functionNames, functions...)
+			functions = append(functions, fileFunctions...)
 		} else {
 			t.Errorf("unexpected error when parsing %s", filePath)
 		}
 	}
 
+	predSignature, err := getPredicateSignature()
+	if err != nil {
+		t.Fatalf("Couldn't get predicates signature")
+	}
+
 	// Check if all public predicates are referenced in target files.
-	for _, functionName := range functionNames {
-		args := []string{"-rl", functionName}
+	for _, function := range functions {
+		// Ignore functions that doesn't match FitPredicate signature.
+		signature := function.Underlying.Signature
+		if len(predSignature.Parameters) != len(signature.Parameters) {
+			continue
+		}
+		if len(predSignature.Results) != len(signature.Results) {
+			continue
+		}
+		// TODO: Check exact types of parameters and results.
+
+		args := []string{"-rl", function.Name.Name}
 		args = append(args, targetFiles...)
 
 		err := exec.Command("grep", args...).Run()
 		if err != nil {
 			switch err.Error() {
 			case "exit status 2":
-				t.Errorf("unexpected error when checking %s", functionName)
+				t.Errorf("unexpected error when checking %s", function.Name)
 			case "exit status 1":
 				t.Errorf("predicate %s is implemented as public but seems not registered or used in any other place",
-					functionName)
+					function.Name)
 			}
 		}
 	}
@@ -1733,7 +1778,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 	for _, test := range resourceTests {
 		test.nodeInfo.SetNode(test.node)
-		fits, err := GeneralPredicates(test.pod, test.nodeInfo)
+		fits, err := GeneralPredicates(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if !reflect.DeepEqual(err, test.wErr) {
 			t.Errorf("%s: unexpected error: %v, want: %v", test.test, err, test.wErr)
 		}
@@ -2226,7 +2271,7 @@ func TestInterPodAffinity(t *testing.T) {
 		}
 		nodeInfo := schedulercache.NewNodeInfo(podsOnNode...)
 		nodeInfo.SetNode(test.node)
-		fits, err := fit.InterPodAffinityMatches(test.pod, nodeInfo)
+		fits, err := fit.InterPodAffinityMatches(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if !reflect.DeepEqual(err, ErrPodAffinityNotMatch) && err != nil {
 			t.Errorf("%s: unexpected error %v", test.test, err)
 		}
@@ -2392,7 +2437,7 @@ func TestInterPodAffinityWithMultipleNodes(t *testing.T) {
 			}
 			nodeInfo := schedulercache.NewNodeInfo(podsOnNode...)
 			nodeInfo.SetNode(&node)
-			fits, err := testFit.InterPodAffinityMatches(test.pod, nodeInfo)
+			fits, err := testFit.InterPodAffinityMatches(test.pod, PredicateMetadata(test.pod), nodeInfo)
 			if !reflect.DeepEqual(err, ErrPodAffinityNotMatch) && err != nil {
 				t.Errorf("%s: unexpected error %v", test.test, err)
 			}
@@ -2403,7 +2448,7 @@ func TestInterPodAffinityWithMultipleNodes(t *testing.T) {
 			if affinity.NodeAffinity != nil {
 				nodeInfo := schedulercache.NewNodeInfo()
 				nodeInfo.SetNode(&node)
-				fits2, err := PodSelectorMatches(test.pod, nodeInfo)
+				fits2, err := PodSelectorMatches(test.pod, PredicateMetadata(test.pod), nodeInfo)
 				if !reflect.DeepEqual(err, ErrNodeSelectorNotMatch) && err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
@@ -2687,10 +2732,9 @@ func TestPodToleratesTaints(t *testing.T) {
 	}
 
 	for _, test := range podTolerateTaintsTests {
-		tolerationMatch := TolerationMatch{FakeNodeInfo(test.node)}
 		nodeInfo := schedulercache.NewNodeInfo()
 		nodeInfo.SetNode(&test.node)
-		fits, err := tolerationMatch.PodToleratesNodeTaints(test.pod, nodeInfo)
+		fits, err := PodToleratesNodeTaints(test.pod, PredicateMetadata(test.pod), nodeInfo)
 		if fits == false && !reflect.DeepEqual(err, ErrTaintsTolerationsNotMatch) {
 			t.Errorf("%s, unexpected error: %v", test.test, err)
 		}
@@ -2796,7 +2840,7 @@ func TestPodSchedulesOnNodeWithMemoryPressureCondition(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		fits, err := CheckNodeMemoryPressurePredicate(test.pod, test.nodeInfo)
+		fits, err := CheckNodeMemoryPressurePredicate(test.pod, PredicateMetadata(test.pod), test.nodeInfo)
 		if fits != test.fits {
 			t.Errorf("%s: expected %v got %v", test.name, test.fits, fits)
 		}

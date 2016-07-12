@@ -35,8 +35,10 @@ bench-workers
 bind-address
 bind-pods-burst
 bind-pods-qps
+bounding-dirs
 build-only
 build-services
+build-tag
 cadvisor-port
 cert-dir
 certificate-authority
@@ -65,6 +67,7 @@ concurrent-namespace-syncs
 concurrent-replicaset-syncs
 concurrent-service-syncs
 concurrent-resource-quota-syncs
+concurrent-serviceaccount-token-syncs
 config-sync-period
 configure-cbr0
 configure-cloud-routes
@@ -98,6 +101,7 @@ deployment-label-key
 deserialization-cache-size
 dest-file
 disable-filter
+disable-kubenet
 dns-port
 dns-provider
 dns-provider-config
@@ -146,13 +150,14 @@ executor-bindall
 executor-logv
 executor-path
 executor-suicide-timeout
+exit-on-lock-contention
 experimental-flannel-overlay
 experimental-keystone-url
 experimental-nvidia-gpus
 experimental-prefix
 external-hostname
 external-ip
-exit-on-lock-contention
+extra-peer-dirs
 failover-timeout
 failure-domains
 fake-clientset
@@ -336,6 +341,7 @@ out-version
 outofdisk-transition-frequency
 output-base
 output-directory
+output-file-base
 output-package
 output-print-type
 output-version
@@ -422,6 +428,7 @@ session-affinity
 setup-node
 show-all
 show-events
+show-kind
 show-labels
 shutdown-fd
 shutdown-fifo

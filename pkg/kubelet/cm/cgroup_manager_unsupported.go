@@ -1,7 +1,7 @@
 // +build !linux
 
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,12 @@ type unsupportedCgroupManager struct{}
 // Make sure that unsupportedCgroupManager implements the CgroupManager interface
 var _ CgroupManager = &unsupportedCgroupManager{}
 
-func NewCgroupManager(_ *cgroupSubsystems) CgroupManager {
+func NewCgroupManager(_ interface{}) CgroupManager {
 	return &unsupportedCgroupManager{}
+}
+
+func (m *unsupportedCgroupManager) Exists(_ string) bool {
+	return false
 }
 
 func (m *unsupportedCgroupManager) Destroy(_ *CgroupConfig) error {

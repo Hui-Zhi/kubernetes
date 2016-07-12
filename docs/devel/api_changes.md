@@ -48,7 +48,7 @@ found at [API Conventions](api-conventions.md).
     - [Edit defaults.go](#edit-defaultsgo)
     - [Edit conversion.go](#edit-conversiongo)
   - [Changing the internal structures](#changing-the-internal-structures)
-    - [Edit types.go](#edit-typesgo)
+    - [Edit types.go](#edit-typesgo-1)
   - [Edit validation.go](#edit-validationgo)
   - [Edit version conversions](#edit-version-conversions)
   - [Generate protobuf objects](#generate-protobuf-objects)
@@ -468,12 +468,11 @@ regenerate auto-generated ones. To regenerate them run:
 hack/update-codegen.sh
 ```
 
-update-codegen will also generate code to handle deep copy of your versioned
-api objects. The deep copy code resides with each versioned API:
-   - `pkg/api/<version>/deep_copy_generated.go` containing auto-generated copy functions
-   - `pkg/apis/extensions/<version>/deep_copy_generated.go` containing auto-generated copy functions
+As part of the build, kubernetes will also generate code to handle deep copy of
+your versioned api objects. The deep copy code resides with each versioned API:
+   - `<path_to_versioned_api>/zz_generated.deep_copy.go` containing auto-generated copy functions
 
-If running the above script is impossible due to compile errors, the easiest
+If regeneration is somehow not possible due to compile errors, the easiest
 workaround is to comment out the code causing errors and let the script to
 regenerate it. If the auto-generated conversion methods are not used by the
 manually-written ones, it's fine to just remove the whole file and let the
@@ -523,9 +522,8 @@ At the moment, you'll have to make a new directory under `pkg/apis/`; copy the
 directory structure from `pkg/apis/extensions`. Add the new group/version to all
 of the `hack/{verify,update}-generated-{deep-copy,conversions,swagger}.sh` files
 in the appropriate places--it should just require adding your new group/version
-to a bash array. You will also need to make sure your new types are imported by
-the generation commands (`cmd/gendeepcopy/` & `cmd/genconversion`). These
-instructions may not be complete and will be updated as we gain experience.
+to a bash array.  See [docs on adding an API group](adding-an-APIGroup.md) for
+more.
 
 Adding API groups outside of the `pkg/apis/` directory is not currently
 supported, but is clearly desirable. The deep copy & conversion generators need

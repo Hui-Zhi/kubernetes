@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ function usage() {
 
   release_stable=$(gsutil cat gs://kubernetes-release/release/stable.txt)
   release_latest=$(gsutil cat gs://kubernetes-release/release/latest.txt)
-  ci_latest=$(gsutil cat gs://kubernetes-release/ci/latest.txt)
+  ci_latest=$(gsutil cat gs://kubernetes-release-dev/ci/latest.txt)
 
   echo "Right now, versions are as follows:"
   echo "  release/stable: ${0} ${release_stable}"

@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -212,17 +212,17 @@ func TestNodeSelectorRequirementsAsSelector(t *testing.T) {
 			in: []NodeSelectorRequirement{{
 				Key:      "foo",
 				Operator: NodeSelectorOpGt,
-				Values:   []string{"1.1"},
+				Values:   []string{"1"},
 			}},
-			out: mustParse("foo>1.1"),
+			out: mustParse("foo>1"),
 		},
 		{
 			in: []NodeSelectorRequirement{{
 				Key:      "bar",
 				Operator: NodeSelectorOpLt,
-				Values:   []string{"7.1"},
+				Values:   []string{"7"},
 			}},
-			out: mustParse("bar<7.1"),
+			out: mustParse("bar<7"),
 		},
 	}
 

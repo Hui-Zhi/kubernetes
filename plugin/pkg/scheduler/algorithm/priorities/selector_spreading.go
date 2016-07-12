@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -207,7 +207,7 @@ func (s *SelectorSpread) CalculateSpreadPriority(pod *api.Pod, nodeNameToInfo ma
 		}
 	}
 
-	result := []schedulerapi.HostPriority{}
+	result := make(schedulerapi.HostPriorityList, 0, len(nodes.Items))
 	//score int - scale of 0-maxPriority
 	// 0 being the lowest priority and maxPriority being the highest
 	for i := range nodes.Items {

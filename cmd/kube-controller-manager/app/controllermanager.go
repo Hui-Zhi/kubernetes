@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import (
 	"k8s.io/kubernetes/pkg/controller/job"
 	namespacecontroller "k8s.io/kubernetes/pkg/controller/namespace"
 	nodecontroller "k8s.io/kubernetes/pkg/controller/node"
-	persistentvolumecontroller "k8s.io/kubernetes/pkg/controller/persistentvolume"
 	petset "k8s.io/kubernetes/pkg/controller/petset"
 	"k8s.io/kubernetes/pkg/controller/podautoscaler"
 	"k8s.io/kubernetes/pkg/controller/podautoscaler/metrics"
@@ -66,7 +65,8 @@ import (
 	routecontroller "k8s.io/kubernetes/pkg/controller/route"
 	servicecontroller "k8s.io/kubernetes/pkg/controller/service"
 	serviceaccountcontroller "k8s.io/kubernetes/pkg/controller/serviceaccount"
-	"k8s.io/kubernetes/pkg/controller/volume"
+	"k8s.io/kubernetes/pkg/controller/volume/attachdetach"
+	persistentvolumecontroller "k8s.io/kubernetes/pkg/controller/volume/persistentvolume"
 	"k8s.io/kubernetes/pkg/healthz"
 	quotainstall "k8s.io/kubernetes/pkg/quota/install"
 	"k8s.io/kubernetes/pkg/serviceaccount"
@@ -405,7 +405,7 @@ func StartControllers(s *options.CMServer, kubeClient *client.Client, kubeconfig
 	time.Sleep(wait.Jitter(s.ControllerStartInterval.Duration, ControllerStartJitter))
 
 	attachDetachController, attachDetachControllerErr :=
-		volume.NewAttachDetachController(
+		attachdetach.NewAttachDetachController(
 			clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "attachdetach-controller")),
 			podInformer,
 			nodeInformer,
@@ -439,13 +439,13 @@ func StartControllers(s *options.CMServer, kubeClient *client.Client, kubeconfig
 		if err != nil {
 			glog.Errorf("Error reading key for service account token controller: %v", err)
 		} else {
-			serviceaccountcontroller.NewTokensController(
+			go serviceaccountcontroller.NewTokensController(
 				clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "tokens-controller")),
 				serviceaccountcontroller.TokensControllerOptions{
 					TokenGenerator: serviceaccount.JWTTokenGenerator(privateKey),
 					RootCA:         rootCA,
 				},
-			).Run()
+			).Run(int(s.ConcurrentSATokenSyncs), wait.NeverStop)
 			time.Sleep(wait.Jitter(s.ControllerStartInterval.Duration, ControllerStartJitter))
 		}
 	}

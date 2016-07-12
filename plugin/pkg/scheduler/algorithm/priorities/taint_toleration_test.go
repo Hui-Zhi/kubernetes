@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -212,8 +212,7 @@ func TestTaintAndToleration(t *testing.T) {
 	}
 	for _, test := range tests {
 		nodeNameToInfo := schedulercache.CreateNodeNameToInfoMap([]*api.Pod{{}})
-		taintToleration := TaintToleration{nodeLister: algorithm.FakeNodeLister(api.NodeList{Items: test.nodes})}
-		list, err := taintToleration.ComputeTaintTolerationPriority(
+		list, err := ComputeTaintTolerationPriority(
 			test.pod,
 			nodeNameToInfo,
 			algorithm.FakeNodeLister(api.NodeList{Items: test.nodes}))

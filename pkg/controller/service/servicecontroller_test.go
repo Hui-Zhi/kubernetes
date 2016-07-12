@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -319,7 +319,7 @@ func TestGetNodeConditionPredicate(t *testing.T) {
 	}
 	pred := getNodeConditionPredicate()
 	for _, test := range tests {
-		accept := pred(test.node)
+		accept := pred(&test.node)
 		if accept != test.expectAccept {
 			t.Errorf("Test failed for %s, expected %v, saw %v", test.name, test.expectAccept, accept)
 		}

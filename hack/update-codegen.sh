@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,12 +43,51 @@ setgen=$(kube::util::find-binary "set-gen")
 # update- and verify- scripts.
 ${clientgen} "$@"
 ${clientgen} -t "$@"
-${clientgen} --clientset-name="release_1_3" --input="api/v1,extensions/v1beta1,autoscaling/v1,batch/v1"
+${clientgen} --clientset-name="release_1_4" --input="api/v1,extensions/v1beta1,autoscaling/v1,batch/v1"
 # Clientgen for federation clientset.
 ${clientgen} --clientset-name=federation_internalclientset --clientset-path=k8s.io/kubernetes/federation/client/clientset_generated --input="../../federation/apis/federation/","api/" --included-types-overrides="api/Service"   "$@"
-${clientgen} --clientset-name=federation_release_1_3 --clientset-path=k8s.io/kubernetes/federation/client/clientset_generated --input="../../federation/apis/federation/v1alpha1","api/v1" --included-types-overrides="api/v1/Service"   "$@"
-${conversiongen} "$@"
-${deepcopygen} "$@"
+${clientgen} --clientset-name=federation_release_1_4 --clientset-path=k8s.io/kubernetes/federation/client/clientset_generated --input="../../federation/apis/federation/v1beta1","api/v1" --included-types-overrides="api/v1/Service"   "$@"
 ${setgen} "$@"
 
 # You may add additional calls of code generators like set-gen above.
+
+# Generate a list of all files that have a `+k8s:` comment-tag.  This will be
+# used to derive lists of files/dirs for generation tools.
+ALL_K8S_TAG_FILES=$(
+    grep -l '^// \?+k8s:' $(
+        find . \
+            -not \( \
+                \( \
+                    -path ./vendor -o \
+                    -path ./_output -o \
+                    -path ./.git \
+                \) -prune \
+            \) \
+            -type f -name \*.go \
+            | sed 's|^./||'
+        )
+    )
+DEEP_COPY_DIRS=$(
+    grep -l '+k8s:deepcopy-gen=' ${ALL_K8S_TAG_FILES} \
+        | xargs dirname \
+        | sort -u
+    )
+DEEPCOPY_INPUTS=$(
+    for d in ${DEEP_COPY_DIRS}; do
+        echo k8s.io/kubernetes/$d
+    done | paste -sd,
+    )
+${deepcopygen} -i ${DEEPCOPY_INPUTS}
+
+CONVERSION_DIRS=$(
+    grep '^// *+k8s:conversion-gen=' ${ALL_K8S_TAG_FILES} \
+        | cut -f1 -d:                                     \
+        | xargs dirname                                   \
+        | sort -u                                         \
+    )
+CONVERSION_INPUTS=$(
+     for d in ${CONVERSION_DIRS}; do
+         echo k8s.io/kubernetes/$d
+     done | paste -sd,
+     )
+${conversiongen} -i ${CONVERSION_INPUTS}

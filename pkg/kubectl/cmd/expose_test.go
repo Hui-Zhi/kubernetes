@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -366,10 +366,10 @@ func TestRunExposeService(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		f, tf, codec := NewAPIFactory()
+		f, tf, codec, ns := NewAPIFactory()
 		tf.Printer = &kubectl.JSONPrinter{}
 		tf.Client = &fake.RESTClient{
-			Codec: codec,
+			NegotiatedSerializer: ns,
 			Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 				switch p, m := req.URL.Path, req.Method; {
 				case p == test.calls[m] && m == "GET":

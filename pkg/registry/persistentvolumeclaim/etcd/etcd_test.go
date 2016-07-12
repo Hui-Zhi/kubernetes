@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -86,11 +86,7 @@ func TestUpdate(t *testing.T) {
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
 			object := obj.(*api.PersistentVolumeClaim)
-			object.Spec.Resources = api.ResourceRequirements{
-				Requests: api.ResourceList{
-					api.ResourceName(api.ResourceStorage): resource.MustParse("20G"),
-				},
-			}
+			object.Spec.VolumeName = "onlyVolumeNameUpdateAllowed"
 			return object
 		},
 	)

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,13 @@ var ginkgoFlags = flag.String("ginkgo-flags", "", "Passed to ginkgo to specify a
 
 var sshOptionsMap map[string]string
 
-const archiveName = "e2e_node_test.tar.gz"
+const (
+	archiveName  = "e2e_node_test.tar.gz"
+	CNIRelease   = "8a936732094c0941e1543ef5d292a1f4fffa1ac5"
+	CNIDirectory = "cni"
+)
+
+var CNIURL = fmt.Sprintf("https://storage.googleapis.com/kubernetes-release/network-plugins/cni-%s.tar.gz", CNIRelease)
 
 var hostnameIpOverrides = struct {
 	sync.RWMutex
@@ -169,6 +175,15 @@ func RunRemote(archive string, host string, cleanup bool, junitFileNumber int, s
 		}()
 	}
 
+	// Install the cni plugin.
+	cniPath := filepath.Join(tmp, CNIDirectory)
+	if _, err := RunSshCommand("ssh", GetHostnameOrIp(host), "--", "sh", "-c",
+		getSshCommand(" ; ", fmt.Sprintf("sudo mkdir -p %s", cniPath),
+			fmt.Sprintf("sudo wget -O - %s | sudo tar -xz -C %s", CNIURL, cniPath))); err != nil {
+		// Exit failure with the error
+		return "", false, err
+	}
+
 	// Copy the archive to the staging directory
 	_, err = RunSshCommand("scp", archive, fmt.Sprintf("%s:%s/", GetHostnameOrIp(host), tmp))
 	if err != nil {
@@ -213,14 +228,11 @@ func RunRemote(archive string, host string, cleanup bool, junitFileNumber int, s
 
 	glog.Infof("Copying test artifacts from %s", host)
 	scpErr := getTestArtifacts(host, tmp)
-	exitOk := true
 	if scpErr != nil {
-		// Only exit non-0 if the scp failed
-		exitOk = false
-		aggErrs = append(aggErrs, err)
+		aggErrs = append(aggErrs, scpErr)
 	}
 
-	return output, exitOk, utilerrors.NewAggregate(aggErrs)
+	return output, len(aggErrs) == 0, utilerrors.NewAggregate(aggErrs)
 }
 
 func getTestArtifacts(host, testDir string) error {

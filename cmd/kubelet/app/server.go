@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -339,12 +339,16 @@ func run(s *options.KubeletServer, kcfg *KubeletConfig) (err error) {
 			glog.Warningf("No API client: %v", err)
 		}
 
-		cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
-		if err != nil {
-			return err
+		if s.CloudProvider == options.AutoDetectCloudProvider {
+			kcfg.AutoDetectCloudProvider = true
+		} else {
+			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
+			if err != nil {
+				return err
+			}
+			glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q\n", s.CloudProvider, s.CloudConfigFile)
+			kcfg.Cloud = cloud
 		}
-		glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q\n", s.CloudProvider, s.CloudConfigFile)
-		kcfg.Cloud = cloud
 	}
 
 	if kcfg.CAdvisorInterface == nil {
@@ -372,10 +376,6 @@ func run(s *options.KubeletServer, kcfg *KubeletConfig) (err error) {
 
 	runtime.ReallyCrash = s.ReallyCrashForTesting
 	rand.Seed(time.Now().UTC().UnixNano())
-
-	credentialprovider.SetPreferredDockercfgPath(s.RootDirectory)
-
-	glog.V(2).Infof("Using root directory: %v", s.RootDirectory)
 
 	// TODO(vmarmol): Do this through container config.
 	oomAdjuster := kcfg.OOMAdjuster
@@ -664,6 +664,7 @@ func RunKubelet(kcfg *KubeletConfig) error {
 	capabilities.Setup(kcfg.AllowPrivileged, privilegedSources, 0)
 
 	credentialprovider.SetPreferredDockercfgPath(kcfg.RootDirectory)
+	glog.V(2).Infof("Using root directory: %v", kcfg.RootDirectory)
 
 	builder := kcfg.Builder
 	if builder == nil {
@@ -773,6 +774,7 @@ type KubeletConfig struct {
 	Address                        net.IP
 	AllowPrivileged                bool
 	Auth                           server.AuthInterface
+	AutoDetectCloudProvider        bool
 	Builder                        KubeletBuilder
 	CAdvisorInterface              cadvisor.Interface
 	VolumeStatsAggPeriod           time.Duration
@@ -920,6 +922,7 @@ func CreateAndInitKubelet(kc *KubeletConfig) (k KubeletBootstrap, pc *config.Pod
 		kc.ImageGCPolicy,
 		kc.DiskSpacePolicy,
 		kc.Cloud,
+		kc.AutoDetectCloudProvider,
 		kc.NodeLabels,
 		kc.NodeStatusUpdateFrequency,
 		kc.OSInterface,

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -432,8 +432,9 @@ func (f *ConfigFactory) responsibleForPod(pod *api.Pod) bool {
 }
 
 func getNodeConditionPredicate() cache.NodeConditionPredicate {
-	return func(node api.Node) bool {
-		for _, cond := range node.Status.Conditions {
+	return func(node *api.Node) bool {
+		for i := range node.Status.Conditions {
+			cond := &node.Status.Conditions[i]
 			// We consider the node for scheduling only when its:
 			// - NodeReady condition status is ConditionTrue,
 			// - NodeOutOfDisk condition status is ConditionFalse,

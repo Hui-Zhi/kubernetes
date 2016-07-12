@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -212,7 +212,7 @@ func (s *ServiceController) ensureDnsRrsets(dnsZoneName, dnsName string, endpoin
 			} else {
 				// Need to replace the existing one with a better one (or just remove it if we have no healthy endpoints).
 				// TODO: Ideally do these inside a transaction, or do an atomic update, but dnsprovider interface doesn't support that yet.
-				glog.V(4).Infof("Existing recordset %v is not equal to needed recordset %v, removing existing and adding needed.", rrset, newRrset)
+				glog.V(4).Infof("Existing recordset %v not equal to needed recordset %v removing existing and adding needed.", rrset, newRrset)
 				if err = rrsets.Remove(rrset); err != nil {
 					return err
 				}

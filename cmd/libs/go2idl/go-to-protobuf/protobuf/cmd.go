@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -73,7 +73,8 @@ func New() *Generator {
 			`k8s.io/kubernetes/pkg/apis/batch/v2alpha1`,
 			`k8s.io/kubernetes/pkg/apis/apps/v1alpha1`,
 			`k8s.io/kubernetes/pkg/apis/rbac/v1alpha1`,
-			`k8s.io/kubernetes/federation/apis/federation/v1alpha1`,
+			`k8s.io/kubernetes/federation/apis/federation/v1beta1`,
+			`k8s.io/kubernetes/pkg/apis/certificates/v1alpha1`,
 		}, ","),
 		DropEmbeddedFields: "k8s.io/kubernetes/pkg/api/unversioned.TypeMeta",
 	}
@@ -132,6 +133,9 @@ func Run(g *Generator) {
 		case strings.HasPrefix(d, "-"):
 			d = d[1:]
 			outputPackage = false
+		}
+		if strings.Contains(d, "-") {
+			log.Fatalf("Package names must be valid protobuf package identifiers, which allow only [a-z0-9_]: %s", d)
 		}
 		name := protoSafePackage(d)
 		parts := strings.SplitN(d, "=", 2)
@@ -235,7 +239,7 @@ func Run(g *Generator) {
 
 		// alter the generated protobuf file to remove the generated types (but leave the serializers) and rewrite the
 		// package statement to match the desired package name
-		if err := RewriteGeneratedGogoProtobufFile(outputPath, p.ExtractGeneratedType, buf.Bytes()); err != nil {
+		if err := RewriteGeneratedGogoProtobufFile(outputPath, p.ExtractGeneratedType, p.OptionalTypeName, buf.Bytes()); err != nil {
 			log.Fatalf("Unable to rewrite generated %s: %v", outputPath, err)
 		}
 

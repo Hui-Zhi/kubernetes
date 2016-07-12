@@ -50,6 +50,7 @@ Updated: 5/21/2016
     - [Benchmark unit tests](#benchmark-unit-tests)
   - [Integration tests](#integration-tests)
     - [Install etcd dependency](#install-etcd-dependency)
+    - [Etcd test data](#etcd-test-data)
     - [Run integration tests](#run-integration-tests)
     - [Run a specific integration test](#run-a-specific-integration-test)
   - [End-to-End tests](#end-to-end-tests)
@@ -73,7 +74,7 @@ passing, so it is often a good idea to make sure the e2e tests work as well.
 * All packages and any significant files require unit tests.
 * The preferred method of testing multiple scenarios or input is
   [table driven testing](https://github.com/golang/go/wiki/TableDrivenTests)
-  - Example: [TestNamespaceAuthorization](../../test/integration/auth_test.go)
+  - Example: [TestNamespaceAuthorization](../../test/integration/auth/auth_test.go)
 * Unit tests must pass on OS X and Windows platforms.
   - Tests using linux-specific features must be skipped or compiled out.
   - Skipped is better, compiled out is required when it won't compile.
@@ -189,9 +190,9 @@ See `go help test` and `go help testflag` for additional info.
   - This includes kubectl commands
 * The preferred method of testing multiple scenarios or inputs
 is [table driven testing](https://github.com/golang/go/wiki/TableDrivenTests)
-  - Example: [TestNamespaceAuthorization](../../test/integration/auth_test.go)
+  - Example: [TestNamespaceAuthorization](../../test/integration/auth/auth_test.go)
 * Each test should create its own master, httpserver and config.
-  - Example: [TestPodUpdateActiveDeadlineSeconds](../../test/integration/pods_test.go)
+  - Example: [TestPodUpdateActiveDeadlineSeconds](../../test/integration/pods/pods_test.go)
 * See [coding conventions](coding-conventions.md).
 
 ### Install etcd dependency
@@ -213,6 +214,14 @@ grep -E "image.*etcd" cluster/saltbase/etcd/etcd.manifest  # Find version
 echo export PATH="$PATH:<LOCATION>" >> ~/.profile  # Add to PATH
 ```
 
+### Etcd test data
+
+Many tests start an etcd server internally, storing test data in the operating system's temporary directory.
+
+If you see test failures because the temporary directory does not have sufficient space,
+or is on a volume with unpredictable write latency, you can override the test data directory
+for those internal etcd instances with the `TEST_ETCD_DIR` environment variable.
+
 ### Run integration tests
 
 The integration tests are run using the `hack/test-integration.sh` script.
@@ -226,8 +235,7 @@ hack/test-integration.sh  # Run all integration tests.
 ```
 
 This script runs the golang tests in package
-[`test/integration`](../../test/integration/)
-and a special watch cache test in `cmd/integration/integration.go`.
+[`test/integration`](../../test/integration/).
 
 ### Run a specific integration test
 

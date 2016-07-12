@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -233,7 +233,7 @@ def main():
 
     if len(bad_lines) != 0:
         if not args.skip_exceptions:
-            print("Found illegal 'flag' usage. If these are false positives you should run `hack/verify-flags-underscore.py -e > hack/verify-flags/exceptions.txt` to update the list.")
+            print("Found illegal 'flag' usage. If these are false negatives you should run `hack/verify-flags-underscore.py -e > hack/verify-flags/exceptions.txt` to update the list.")
         bad_lines.sort()
         for (relname, line) in bad_lines:
             print("%s:%s" % (relname, line))

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/evanphx/json-patch"
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 
 	"k8s.io/kubernetes/pkg/api"
@@ -46,24 +47,26 @@ type PatchOptions struct {
 	OutputFormat string
 }
 
-const (
-	patch_long = `Update field(s) of a resource using strategic merge patch
+var (
+	patch_long = dedent.Dedent(`
+		Update field(s) of a resource using strategic merge patch
 
-JSON and YAML formats are accepted.
+		JSON and YAML formats are accepted.
 
-Please refer to the models in https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/HEAD/docs/api-reference/v1/definitions.html to find if a field is mutable.`
-	patch_example = `
-# Partially update a node using strategic merge patch
-kubectl patch node k8s-node-1 -p '{"spec":{"unschedulable":true}}'
+		Please refer to the models in https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/HEAD/docs/api-reference/v1/definitions.html to find if a field is mutable.`)
+	patch_example = dedent.Dedent(`
 
-# Partially update a node identified by the type and name specified in "node.json" using strategic merge patch
-kubectl patch -f node.json -p '{"spec":{"unschedulable":true}}'
+		# Partially update a node using strategic merge patch
+		kubectl patch node k8s-node-1 -p '{"spec":{"unschedulable":true}}'
 
-# Update a container's image; spec.containers[*].name is required because it's a merge key
-kubectl patch pod valid-pod -p '{"spec":{"containers":[{"name":"kubernetes-serve-hostname","image":"new image"}]}}'
+		# Partially update a node identified by the type and name specified in "node.json" using strategic merge patch
+		kubectl patch -f node.json -p '{"spec":{"unschedulable":true}}'
 
-# Update a container's image using a json patch with positional arrays
-kubectl patch pod valid-pod --type='json' -p='[{"op": "replace", "path": "/spec/containers/0/image", "value":"new image"}]'`
+		# Update a container's image; spec.containers[*].name is required because it's a merge key
+		kubectl patch pod valid-pod -p '{"spec":{"containers":[{"name":"kubernetes-serve-hostname","image":"new image"}]}}'
+
+		# Update a container's image using a json patch with positional arrays
+		kubectl patch pod valid-pod --type='json' -p='[{"op": "replace", "path": "/spec/containers/0/image", "value":"new image"}]'`)
 )
 
 func NewCmdPatch(f *cmdutil.Factory, out io.Writer) *cobra.Command {
@@ -80,7 +83,7 @@ func NewCmdPatch(f *cmdutil.Factory, out io.Writer) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "patch (-f FILENAME | TYPE NAME) -p PATCH",
-		Short:   "Update field(s) of a resource using strategic merge patch.",
+		Short:   "Update field(s) of a resource using strategic merge patch",
 		Long:    patch_long,
 		Example: patch_example,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -164,17 +167,18 @@ func RunPatch(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []stri
 
 		if !options.Local {
 			helper := resource.NewHelper(client, mapping)
-			patchedObject, err := helper.Patch(namespace, name, patchType, patchBytes)
+			_, err := helper.Patch(namespace, name, patchType, patchBytes)
 			if err != nil {
 				return err
 			}
 			if cmdutil.ShouldRecord(cmd, info) {
-				if err := cmdutil.RecordChangeCause(patchedObject, f.Command()); err == nil {
-					// don't return an error on failure.  The patch itself succeeded, its only the hint for that change that failed
-					// don't bother checking for failures of this replace, because a failure to indicate the hint doesn't fail the command
-					// also, don't force the replacement.  If the replacement fails on a resourceVersion conflict, then it means this
-					// record hint is likely to be invalid anyway, so avoid the bad hint
-					resource.NewHelper(client, mapping).Replace(namespace, name, false, patchedObject)
+				// don't return an error on failure.  The patch itself succeeded, its only the hint for that change that failed
+				// don't bother checking for failures of this replace, because a failure to indicate the hint doesn't fail the command
+				// also, don't force the replacement.  If the replacement fails on a resourceVersion conflict, then it means this
+				// record hint is likely to be invalid anyway, so avoid the bad hint
+				patch, err := cmdutil.ChangeResourcePatch(info, f.Command())
+				if err == nil {
+					helper.Patch(info.Namespace, info.Name, api.StrategicMergePatchType, patch)
 				}
 			}
 			count++
@@ -205,7 +209,7 @@ func RunPatch(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []stri
 		}
 		// TODO: if we ever want to go generic, this allows a clean -o yaml without trying to print columns or anything
 		// rawExtension := &runtime.Unknown{
-		// 	Raw: originalPatchedObjJS,
+		//	Raw: originalPatchedObjJS,
 		// }
 
 		printer, err := f.PrinterForMapping(cmd, mapping, false)

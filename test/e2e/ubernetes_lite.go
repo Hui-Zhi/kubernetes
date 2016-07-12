@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,19 +32,19 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-var _ = framework.KubeDescribe("Ubernetes Lite", func() {
-	f := framework.NewDefaultFramework("ubernetes-lite")
+var _ = framework.KubeDescribe("Multi-AZ Clusters", func() {
+	f := framework.NewDefaultFramework("multi-az")
 	var zoneCount int
 	var err error
 	image := "gcr.io/google_containers/serve_hostname:v1.4"
 	BeforeEach(func() {
+		framework.SkipUnlessProviderIs("gce", "gke", "aws")
 		if zoneCount <= 0 {
 			zoneCount, err = getZoneCount(f.Client)
 			Expect(err).NotTo(HaveOccurred())
 		}
 		By(fmt.Sprintf("Checking for multi-zone cluster.  Zone count = %d", zoneCount))
 		framework.SkipUnlessAtLeast(zoneCount, 2, "Zone count is %d, only run for multi-zone clusters, skipping test")
-		framework.SkipUnlessProviderIs("gce", "gke", "aws")
 		// TODO: SkipUnlessDefaultScheduler() // Non-default schedulers might not spread
 	})
 	It("should spread the pods of a service across zones", func() {

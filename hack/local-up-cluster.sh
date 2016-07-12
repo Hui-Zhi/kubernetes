@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -324,7 +324,7 @@ function start_kubelet {
          which chcon > /dev/null ; then
          if [[ ! $(ls -Zd /var/lib/kubelet) =~ system_u:object_r:svirt_sandbox_file_t:s0 ]] ; then
             echo "Applying SELinux label to /var/lib/kubelet directory."
-            if ! chcon -R system_u:object_r:svirt_sandbox_file_t:s0 /var/lib/kubelet; then
+            if ! sudo chcon -Rt svirt_sandbox_file_t /var/lib/kubelet; then
                echo "Failed to apply selinux label to /var/lib/kubelet."
             fi
          fi
@@ -412,6 +412,19 @@ function start_kubedns {
     if [[ "${ENABLE_CLUSTER_DNS}" = true ]]; then
         echo "Creating kube-system namespace"
         sed -e "s/{{ pillar\['dns_replicas'\] }}/${DNS_REPLICAS}/g;s/{{ pillar\['dns_domain'\] }}/${DNS_DOMAIN}/g;" "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns/skydns-rc.yaml.in" >| skydns-rc.yaml
+        if [[ "${FEDERATION:-}" == "true" ]]; then
+          FEDERATIONS_DOMAIN_MAP="${FEDERATIONS_DOMAIN_MAP:-}"
+          if [[ -z "${FEDERATIONS_DOMAIN_MAP}" && -n "${FEDERATION_NAME:-}" && -n "${DNS_ZONE_NAME:-}" ]]; then
+            FEDERATIONS_DOMAIN_MAP="${FEDERATION_NAME}=${DNS_ZONE_NAME}"
+          fi
+          if [[ -n "${FEDERATIONS_DOMAIN_MAP}" ]]; then
+            sed -i -e "s/{{ pillar\['federations_domain_map'\] }}/- --federations=${FEDERATIONS_DOMAIN_MAP}/g" skydns-rc.yaml
+          else
+            sed -i -e "/{{ pillar\['federations_domain_map'\] }}/d" skydns-rc.yaml
+          fi
+        else
+          sed -i -e "/{{ pillar\['federations_domain_map'\] }}/d" skydns-rc.yaml
+        fi
         sed -e "s/{{ pillar\['dns_server'\] }}/${DNS_SERVER_IP}/g" "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns/skydns-svc.yaml.in" >| skydns-svc.yaml
         cat <<EOF >namespace.yaml
 apiVersion: v1

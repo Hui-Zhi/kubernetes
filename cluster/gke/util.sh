@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -318,7 +318,7 @@ function detect-node-instance-groups {
   ALL_INSTANCE_GROUP_URLS=${urls[*]}
   NODE_INSTANCE_GROUPS=()
   for url in "${urls[@]:-}"; do
-    local igm_zone=$(expr match ${url} '.*/zones/\([a-z0-9-]*\)/')
+    local igm_zone=$(expr ${url} : '.*/zones/\([a-z0-9-]*\)/')
     if [[ "${igm_zone}" == "${ZONE}" ]]; then
       NODE_INSTANCE_GROUPS+=("${url##*/}")
     fi

@@ -1,4 +1,4 @@
-# Copyright 2016 The Kubernetes Authors All rights reserved.
+# Copyright 2016 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 REGISTRY?=gcr.io/google_containers
 ARCH?=amd64
 TEMP_DIR:=$(shell mktemp -d)
-CNI_RELEASE=c864f0e1ea73719b8f4582402b0847064f9883b0
+CNI_RELEASE=8a936732094c0941e1543ef5d292a1f4fffa1ac5
 
 UNAME_S:=$(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

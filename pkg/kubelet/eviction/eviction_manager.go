@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ func (m *managerImpl) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAd
 	if len(m.nodeConditions) == 0 {
 		return lifecycle.PodAdmitResult{Admit: true}
 	}
-	notBestEffort := qos.BestEffort != qos.GetPodQos(attrs.Pod)
+	notBestEffort := qos.BestEffort != qos.GetPodQOS(attrs.Pod)
 	if notBestEffort {
 		return lifecycle.PodAdmitResult{Admit: true}
 	}

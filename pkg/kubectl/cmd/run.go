@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/meta"
@@ -35,38 +36,40 @@ import (
 	"k8s.io/kubernetes/pkg/runtime"
 )
 
-const (
-	run_long = `Create and run a particular image, possibly replicated.
-Creates a deployment or job to manage the created container(s).`
-	run_example = `# Start a single instance of nginx.
-kubectl run nginx --image=nginx
+var (
+	run_long = dedent.Dedent(`
+		Create and run a particular image, possibly replicated.
+		Creates a deployment or job to manage the created container(s).`)
+	run_example = dedent.Dedent(`
+		# Start a single instance of nginx.
+		kubectl run nginx --image=nginx
 
-# Start a single instance of hazelcast and let the container expose port 5701 .
-kubectl run hazelcast --image=hazelcast --port=5701
+		# Start a single instance of hazelcast and let the container expose port 5701 .
+		kubectl run hazelcast --image=hazelcast --port=5701
 
-# Start a single instance of hazelcast and set environment variables "DNS_DOMAIN=cluster" and "POD_NAMESPACE=default" in the container.
-kubectl run hazelcast --image=hazelcast --env="DNS_DOMAIN=cluster" --env="POD_NAMESPACE=default"
+		# Start a single instance of hazelcast and set environment variables "DNS_DOMAIN=cluster" and "POD_NAMESPACE=default" in the container.
+		kubectl run hazelcast --image=hazelcast --env="DNS_DOMAIN=cluster" --env="POD_NAMESPACE=default"
 
-# Start a replicated instance of nginx.
-kubectl run nginx --image=nginx --replicas=5
+		# Start a replicated instance of nginx.
+		kubectl run nginx --image=nginx --replicas=5
 
-# Dry run. Print the corresponding API objects without creating them.
-kubectl run nginx --image=nginx --dry-run
+		# Dry run. Print the corresponding API objects without creating them.
+		kubectl run nginx --image=nginx --dry-run
 
-# Start a single instance of nginx, but overload the spec of the deployment with a partial set of values parsed from JSON.
-kubectl run nginx --image=nginx --overrides='{ "apiVersion": "v1", "spec": { ... } }'
+		# Start a single instance of nginx, but overload the spec of the deployment with a partial set of values parsed from JSON.
+		kubectl run nginx --image=nginx --overrides='{ "apiVersion": "v1", "spec": { ... } }'
 
-# Start a pod of busybox and keep it in the foreground, don't restart it if it exits.
-kubectl run -i -t busybox --image=busybox --restart=Never
+		# Start a pod of busybox and keep it in the foreground, don't restart it if it exits.
+		kubectl run -i -t busybox --image=busybox --restart=Never
 
-# Start the nginx container using the default command, but use custom arguments (arg1 .. argN) for that command.
-kubectl run nginx --image=nginx -- <arg1> <arg2> ... <argN>
+		# Start the nginx container using the default command, but use custom arguments (arg1 .. argN) for that command.
+		kubectl run nginx --image=nginx -- <arg1> <arg2> ... <argN>
 
-# Start the nginx container using a different command and custom arguments.
-kubectl run nginx --image=nginx --command -- <cmd> <arg1> ... <argN>
+		# Start the nginx container using a different command and custom arguments.
+		kubectl run nginx --image=nginx --command -- <cmd> <arg1> ... <argN>
 
-# Start the perl container to compute π to 2000 places and print it out.
-kubectl run pi --image=perl --restart=OnFailure -- perl -Mbignum=bpi -wle 'print bpi(2000)'`
+		# Start the perl container to compute π to 2000 places and print it out.
+		kubectl run pi --image=perl --restart=OnFailure -- perl -Mbignum=bpi -wle 'print bpi(2000)'`)
 )
 
 func NewCmdRun(f *cmdutil.Factory, cmdIn io.Reader, cmdOut, cmdErr io.Writer) *cobra.Command {
@@ -74,7 +77,7 @@ func NewCmdRun(f *cmdutil.Factory, cmdIn io.Reader, cmdOut, cmdErr io.Writer) *c
 		Use: "run NAME --image=image [--env=\"key=value\"] [--port=port] [--replicas=replicas] [--dry-run=bool] [--overrides=inline-json] [--command] -- [COMMAND] [args...]",
 		// run-container is deprecated
 		Aliases: []string{"run-container"},
-		Short:   "Run a particular image on the cluster.",
+		Short:   "Run a particular image on the cluster",
 		Long:    run_long,
 		Example: run_example,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -323,7 +326,6 @@ func waitForPodRunning(c *client.Client, pod *api.Pod, out io.Writer) (status ap
 		}
 		fmt.Fprintf(out, "Waiting for pod %s/%s to be running, status is %s, pod ready: %v\n", pod.Namespace, pod.Name, pod.Status.Phase, ready)
 		time.Sleep(2 * time.Second)
-		continue
 	}
 }
 
@@ -332,8 +334,12 @@ func handleAttachPod(f *cmdutil.Factory, c *client.Client, pod *api.Pod, opts *A
 	if err != nil {
 		return err
 	}
+	ctrName, err := opts.GetContainerName(pod)
+	if err != nil {
+		return err
+	}
 	if status == api.PodSucceeded || status == api.PodFailed {
-		req, err := f.LogsForObject(pod, &api.PodLogOptions{Container: opts.GetContainerName(pod)})
+		req, err := f.LogsForObject(pod, &api.PodLogOptions{Container: ctrName})
 		if err != nil {
 			return err
 		}
@@ -350,7 +356,7 @@ func handleAttachPod(f *cmdutil.Factory, c *client.Client, pod *api.Pod, opts *A
 	opts.Namespace = pod.Namespace
 	if err := opts.Run(); err != nil {
 		fmt.Fprintf(opts.Out, "Error attaching, falling back to logs: %v\n", err)
-		req, err := f.LogsForObject(pod, &api.PodLogOptions{Container: opts.GetContainerName(pod)})
+		req, err := f.LogsForObject(pod, &api.PodLogOptions{Container: ctrName})
 		if err != nil {
 			return err
 		}

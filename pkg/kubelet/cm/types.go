@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,4 +53,6 @@ type CgroupManager interface {
 	Destroy(*CgroupConfig) error
 	// Update cgroup configuration.
 	Update(*CgroupConfig) error
+	// Exists checks if the cgroup already exists
+	Exists(string) bool
 }

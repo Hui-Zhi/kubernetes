@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -119,6 +119,8 @@ type Runtime interface {
 	// stream the log. Set 'follow' to false and specify the number of lines (e.g.
 	// "100" or "all") to tail the log.
 	GetContainerLogs(pod *api.Pod, containerID ContainerID, logOptions *api.PodLogOptions, stdout, stderr io.Writer) (err error)
+	// Delete a container. If the container is still running, an error is returned.
+	DeleteContainer(containerID ContainerID) error
 	// ContainerCommandRunner encapsulates the command runner interfaces for testability.
 	ContainerCommandRunner
 	// ContainerAttach encapsulates the attaching to containers for testability
@@ -233,6 +235,8 @@ const (
 	ContainerStateExited  ContainerState = "exited"
 	// This unknown encompasses all the states that we currently don't care.
 	ContainerStateUnknown ContainerState = "unknown"
+	// Not in use yet.
+	ContainerStateCreated ContainerState = "created"
 )
 
 // Container provides the runtime information for a container, such as ID, hash,

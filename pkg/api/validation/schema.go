@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -294,7 +294,7 @@ func (s *SwaggerSchema) isGenericArray(p swagger.ModelProperty) bool {
 }
 
 // This matches type name in the swagger spec, such as "v1.Binding".
-var versionRegexp = regexp.MustCompile(`^v.+\..*`)
+var versionRegexp = regexp.MustCompile(`^(v.+|unversioned)\..*`)
 
 func (s *SwaggerSchema) validateField(value interface{}, fieldName, fieldType string, fieldDetails *swagger.ModelProperty) []error {
 	allErrs := []error{}

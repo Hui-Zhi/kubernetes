@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,47 @@ set -o nounset
 set -o pipefail
 set -o xtrace
 
+# include shell2junit library
+source <(curl -fsS --retry 3 'https://raw.githubusercontent.com/kubernetes/kubernetes/master/third_party/forked/shell2junit/sh2ju.sh')
+
+# Have cmd/e2e run by goe2e.sh generate JUnit report in ${WORKSPACE}/junit*.xml
+ARTIFACTS=${WORKSPACE}/_artifacts
+mkdir -p ${ARTIFACTS}
+
+# E2E runner stages
+STAGE_PRE="PRE-SETUP"
+STAGE_SETUP="SETUP"
+STAGE_CLEANUP="CLEANUP"
+STAGE_KUBEMARK="KUBEMARK"
+
 : ${KUBE_GCS_RELEASE_BUCKET:="kubernetes-release"}
+: ${KUBE_GCS_DEV_RELEASE_BUCKET:="kubernetes-release-dev"}
+
+# record_command runs the command and records its output/error messages in junit format
+# it expects the first argument to be the class and the second to be the name of the command
+# Example:
+# record_command PRESETUP curltest curl google.com
+# record_command CLEANUP check false
+#
+# WARNING: Variable changes in the command will NOT be effective after record_command returns.
+#          This is because the command runs in subshell.
+function record_command() {
+    set +o xtrace
+    set +o nounset
+    set +o errexit
+
+    local class=$1
+    shift
+    local name=$1
+    shift
+    echo "Recording: ${class} ${name}"
+    echo "Running command: $@"
+    juLog -output="${ARTIFACTS}" -class="${class}" -name="${name}" "$@"
+
+    set -o nounset
+    set -o errexit
+    set -o xtrace
+}
 
 function running_in_docker() {
     grep -q docker /proc/self/cgroup
@@ -47,10 +87,15 @@ function fetch_server_version_tars() {
 function fetch_published_version_tars() {
     local -r published_version="${1}"
     IFS='/' read -a varr <<< "${published_version}"
-    bucket="${varr[0]}"
-    build_version=$(gsutil cat gs://${KUBE_GCS_RELEASE_BUCKET}/${published_version}.txt)
+    path="${varr[0]}"
+    if [[ "${path}" == "release" ]]; then
+      local -r bucket="${KUBE_GCS_RELEASE_BUCKET}"
+    else
+      local -r bucket="${KUBE_GCS_DEV_RELEASE_BUCKET}"
+    fi
+    build_version=$(gsutil cat "gs://${bucket}/${published_version}.txt")
     echo "Using published version $bucket/$build_version (from ${published_version})"
-    fetch_tars_from_gcs "${bucket}" "${build_version}"
+    fetch_tars_from_gcs "gs://${bucket}/${path}" "${build_version}"
     unpack_binaries
     # Set CLUSTER_API_VERSION for GKE CI
     export CLUSTER_API_VERSION=$(echo ${build_version} | cut -c 2-)
@@ -64,13 +109,10 @@ function clean_binaries() {
 }
 
 function fetch_tars_from_gcs() {
-    local -r bucket="${1}"
+    local -r gspath="${1}"
     local -r build_version="${2}"
-    echo "Pulling binaries from GCS; using server version ${bucket}/${build_version}."
-    gsutil -mq cp \
-        "gs://${KUBE_GCS_RELEASE_BUCKET}/${bucket}/${build_version}/kubernetes.tar.gz" \
-        "gs://${KUBE_GCS_RELEASE_BUCKET}/${bucket}/${build_version}/kubernetes-test.tar.gz" \
-        .
+    echo "Pulling binaries from GCS; using server version ${gspath}/${build_version}."
+    gsutil -mq cp "${gspath}/${build_version}/kubernetes.tar.gz" "${gspath}/${build_version}/kubernetes-test.tar.gz" .
 }
 
 function unpack_binaries() {
@@ -111,7 +153,7 @@ function install_google_cloud_sdk_tarball() {
     tar xzf "${tarball}" -C "${install_dir}"
 
     export CLOUDSDK_CORE_DISABLE_PROMPTS=1
-    "${install_dir}/google-cloud-sdk/install.sh" --disable-installation-options --bash-completion=false --path-update=false --usage-reporting=false
+    record_command "${STAGE_PRE}" "install_gcloud" "${install_dir}/google-cloud-sdk/install.sh" --disable-installation-options --bash-completion=false --path-update=false --usage-reporting=false
     export PATH=${install_dir}/google-cloud-sdk/bin:${PATH}
 }
 
@@ -141,8 +183,11 @@ function dump_cluster_logs() {
 
 ### Pre Set Up ###
 if running_in_docker; then
-    curl -fsSL --retry 3 --keepalive-time 2 -o "${WORKSPACE}/google-cloud-sdk.tar.gz" 'https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz'
+    record_command "${STAGE_PRE}" "download_gcloud" curl -fsSL --retry 3 --keepalive-time 2 -o "${WORKSPACE}/google-cloud-sdk.tar.gz" 'https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz'
     install_google_cloud_sdk_tarball "${WORKSPACE}/google-cloud-sdk.tar.gz" /
+    if [[ "${KUBERNETES_PROVIDER}" == 'aws' ]]; then
+        pip install awscli
+    fi
 fi
 
 # Install gcloud from a custom path if provided. Used to test GKE with gcloud
@@ -178,6 +223,16 @@ if [[ -n "${JENKINS_GCI_IMAGE_FAMILY:-}" ]]; then
   fi
 fi
 
+if [[ -f "${KUBEKINS_SERVICE_ACCOUNT_FILE:-}" ]]; then
+  echo 'Activating service account...'  # No harm in doing this multiple times.
+  gcloud auth activate-service-account --key-file="${KUBEKINS_SERVICE_ACCOUNT_FILE}"
+  unset GCE_SERVICE_ACCOUNT  # Use checked in credentials, not the metadata server
+  unset KUBEKINS_SERVICE_ACCOUNT_FILE
+elif [[ -n "${KUBEKINS_SERVICE_ACCOUNT_FILE:-}" ]]; then
+  echo "ERROR: cannot access service account file at: ${KUBEKINS_SERVICE_ACCOUNT_FILE}"
+fi
+
+
 function e2e_test() {
     local -r ginkgo_test_args="${1}"
     # Check to make sure the cluster is up before running tests, and fail if it's not.
@@ -190,14 +245,19 @@ function e2e_test() {
     if [[ "${E2E_PUBLISH_GREEN_VERSION:-}" == "true" && ${exitcode} == 0 ]]; then
         # Use plaintext version file packaged with kubernetes.tar.gz
         echo "Publish version to ci/latest-green.txt: $(cat version)"
-        gsutil cp ./version gs://kubernetes-release/ci/latest-green.txt
+        gsutil cp ./version "gs://${KUBE_GCS_DEV_RELEASE_BUCKET}/ci/latest-green.txt"
     fi
+    return ${exitcode}
 }
 
 echo "--------------------------------------------------------------------------------"
 echo "Test Environment:"
 printenv | sort
 echo "--------------------------------------------------------------------------------"
+
+# Set this var instead of exiting-- we must do the cluster teardown step. We'll
+# return this at the very end.
+EXIT_CODE=0
 
 # We get the Kubernetes tarballs unless we are going to use old ones
 if [[ "${JENKINS_USE_EXISTING_BINARIES:-}" =~ ^[yY]$ ]]; then
@@ -272,9 +332,6 @@ if [[ ! "${JOB_NAME}" =~ -pull- ]]; then
     JENKINS_BUILD_STARTED=true bash <(curl -fsS --retry 3 --keepalive-time 2 "https://raw.githubusercontent.com/kubernetes/kubernetes/master/hack/jenkins/upload-to-gcs.sh")
 fi
 
-# Have cmd/e2e run by goe2e.sh generate JUnit report in ${WORKSPACE}/junit*.xml
-ARTIFACTS=${WORKSPACE}/_artifacts
-mkdir -p ${ARTIFACTS}
 # When run inside Docker, we need to make sure all files are world-readable
 # (since they will be owned by root on the host).
 trap "chmod -R o+r '${ARTIFACTS}'" EXIT SIGINT SIGTERM
@@ -329,22 +386,22 @@ if [[ -n "${JENKINS_PUBLISHED_SKEW_VERSION:-}" ]]; then
     if [[ "${E2E_UPGRADE_TEST:-}" == "true" ]]; then
         # Add a report prefix for the e2e tests so that the tests don't get overwritten when we run
         # the rest of the e2es.
-        E2E_REPORT_PREFIX='upgrade' e2e_test "${GINKGO_UPGRADE_TEST_ARGS:-}"
+        E2E_REPORT_PREFIX='upgrade' e2e_test "${GINKGO_UPGRADE_TEST_ARGS:-}" || EXIT_CODE=1
     fi
     if [[ "${JENKINS_USE_SKEW_TESTS:-}" != "true" ]]; then
         # Back out into the old tests now that we've downloaded & maybe upgraded.
         cd ../kubernetes_old
-	# Append kubectl-path of skewed kubectl to test args, since we always
-	# want that to use the skewed kubectl version:
-	#
-	# - for upgrade jobs, we want kubectl to be at the same version as master.
-	# - for client skew tests, we want to use the skewed kubectl (that's what we're testing).
+        # Append kubectl-path of skewed kubectl to test args, since we always
+        # want that to use the skewed kubectl version:
+        #
+        # - for upgrade jobs, we want kubectl to be at the same version as master.
+        # - for client skew tests, we want to use the skewed kubectl (that's what we're testing).
         GINKGO_TEST_ARGS="${GINKGO_TEST_ARGS:-} --kubectl-path=$(pwd)/../kubernetes/cluster/kubectl.sh"
     fi
 fi
 
 if [[ "${E2E_TEST,,}" == "true" ]]; then
-    e2e_test "${GINKGO_TEST_ARGS:-}"
+    e2e_test "${GINKGO_TEST_ARGS:-}" || EXIT_CODE=1
 fi
 
 ### Start Kubemark ###
@@ -362,6 +419,8 @@ if [[ "${USE_KUBEMARK:-}" == "true" ]]; then
   # junit.xml results for test failures and not process the exit code.  This is needed by jenkins to more gracefully
   # handle blocking the merge queue as a result of test failure flakes.  Infrastructure failures should continue to
   # exit non-0.
+  # TODO: The above comment is no longer accurate. Need to fix this before
+  # turning xunit off for the postsubmit tests. See: #28200
   ./test/kubemark/run-e2e-tests.sh --ginkgo.focus="${KUBEMARK_TESTS:-starting\s30\spods}" "${KUBEMARK_TEST_ARGS:-}" || dump_cluster_logs
   ./test/kubemark/stop-kubemark.sh
   NUM_NODES=${NUM_NODES_BKP}
@@ -391,9 +450,16 @@ fi
 # * neither started nor destroyed (soak test)
 if [[ "${E2E_UP:-}" == "${E2E_DOWN:-}" && -f "${gcp_resources_before}" && -f "${gcp_resources_after}" ]]; then
   difference=$(diff -sw -U0 -F'^\[.*\]$' "${gcp_resources_before}" "${gcp_resources_after}") || true
+  noleak=true
   if [[ -n $(echo "${difference}" | tail -n +3 | grep -E "^\+") ]] && [[ "${FAIL_ON_GCP_RESOURCE_LEAK:-}" == "true" ]]; then
+    noleak=false
+  fi
+  if ! ${noleak} ; then
     echo "${difference}"
     echo "!!! FAIL: Google Cloud Platform resources leaked while running tests!"
-    exit 1
+    EXIT_CODE=1
   fi
+  record_command "${STAGE_CLEANUP}" "gcp_resource_leak_check" ${noleak}
 fi
+
+exit ${EXIT_CODE}

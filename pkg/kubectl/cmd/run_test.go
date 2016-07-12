@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -149,9 +149,9 @@ func TestRunArgsFollowDashRules(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		f, tf, codec := NewAPIFactory()
+		f, tf, codec, ns := NewAPIFactory()
 		tf.Client = &fake.RESTClient{
-			Codec: codec,
+			NegotiatedSerializer: ns,
 			Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: 201, Header: defaultHeader(), Body: objBody(codec, &rc.Items[0])}, nil
 			}),
@@ -264,10 +264,10 @@ func TestGenerateService(t *testing.T) {
 	}
 	for _, test := range tests {
 		sawPOST := false
-		f, tf, codec := NewAPIFactory()
+		f, tf, codec, ns := NewAPIFactory()
 		tf.ClientConfig = &restclient.Config{ContentConfig: restclient.ContentConfig{GroupVersion: testapi.Default.GroupVersion()}}
 		tf.Client = &fake.RESTClient{
-			Codec: codec,
+			NegotiatedSerializer: ns,
 			Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 				switch p, m := req.URL.Path, req.Method; {
 				case test.expectPOST && m == "POST" && p == "/namespaces/namespace/services":

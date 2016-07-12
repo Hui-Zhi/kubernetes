@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,14 +17,14 @@ limitations under the License.
 package daemon
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"time"
 
-	"fmt"
-
 	"github.com/golang/glog"
+
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/api/validation"
@@ -266,18 +266,6 @@ func (dsc *DaemonSetsController) runWorker() {
 	}
 }
 
-func (dsc *DaemonSetsController) enqueueAllDaemonSets() {
-	glog.V(4).Infof("Enqueueing all daemon sets")
-	ds, err := dsc.dsStore.List()
-	if err != nil {
-		glog.Errorf("Error enqueueing daemon sets: %v", err)
-		return
-	}
-	for i := range ds.Items {
-		dsc.enqueueDaemonSet(&ds.Items[i])
-	}
-}
-
 func (dsc *DaemonSetsController) enqueueDaemonSet(ds *extensions.DaemonSet) {
 	key, err := controller.KeyFunc(ds)
 	if err != nil {
@@ -298,7 +286,7 @@ func (dsc *DaemonSetsController) getPodDaemonSet(pod *api.Pod) *extensions.Daemo
 			glog.Errorf("lookup cache does not retuen a ReplicationController object")
 			return nil
 		}
-		if cached && dsc.isCacheValid(pod, ds) {
+		if dsc.isCacheValid(pod, ds) {
 			return ds
 		}
 	}
@@ -497,17 +485,18 @@ func (dsc *DaemonSetsController) manage(ds *extensions.DaemonSet) {
 
 		daemonPods, isRunning := nodeToDaemonPods[node.Name]
 
-		if shouldRun && !isRunning {
+		switch {
+		case shouldRun && !isRunning:
 			// If daemon pod is supposed to be running on node, but isn't, create daemon pod.
 			nodesNeedingDaemonPods = append(nodesNeedingDaemonPods, node.Name)
-		} else if shouldRun && len(daemonPods) > 1 {
+		case shouldRun && len(daemonPods) > 1:
 			// If daemon pod is supposed to be running on node, but more than 1 daemon pod is running, delete the excess daemon pods.
 			// Sort the daemon pods by creation time, so the the oldest is preserved.
 			sort.Sort(podByCreationTimestamp(daemonPods))
 			for i := 1; i < len(daemonPods); i++ {
 				podsToDelete = append(podsToDelete, daemonPods[i].Name)
 			}
-		} else if !shouldRun && isRunning {
+		case !shouldRun && isRunning:
 			// If daemon pod isn't supposed to run on node, but it is, delete all daemon pods on node.
 			for i := range daemonPods {
 				podsToDelete = append(podsToDelete, daemonPods[i].Name)
@@ -566,21 +555,22 @@ func (dsc *DaemonSetsController) manage(ds *extensions.DaemonSet) {
 }
 
 func storeDaemonSetStatus(dsClient unversionedextensions.DaemonSetInterface, ds *extensions.DaemonSet, desiredNumberScheduled, currentNumberScheduled, numberMisscheduled int) error {
-	if int(ds.Status.DesiredNumberScheduled) == desiredNumberScheduled && int(ds.Status.CurrentNumberScheduled) == currentNumberScheduled && int(ds.Status.NumberMisscheduled) == numberMisscheduled {
+	if int(ds.Status.DesiredNumberScheduled) == desiredNumberScheduled &&
+		int(ds.Status.CurrentNumberScheduled) == currentNumberScheduled &&
+		int(ds.Status.NumberMisscheduled) == numberMisscheduled {
 		return nil
 	}
 
 	var updateErr, getErr error
-	for i := 0; i <= StatusUpdateRetries; i++ {
+	for i := 0; i < StatusUpdateRetries; i++ {
 		ds.Status.DesiredNumberScheduled = int32(desiredNumberScheduled)
 		ds.Status.CurrentNumberScheduled = int32(currentNumberScheduled)
 		ds.Status.NumberMisscheduled = int32(numberMisscheduled)
 
-		_, updateErr = dsClient.UpdateStatus(ds)
-		if updateErr == nil {
-			// successful update
+		if _, updateErr = dsClient.UpdateStatus(ds); updateErr == nil {
 			return nil
 		}
+
 		// Update the set with the latest resource version for the next poll
 		if ds, getErr = dsClient.Get(ds.Name); getErr != nil {
 			// If the GET fails we can't trust status.Replicas anymore. This error
@@ -596,29 +586,30 @@ func (dsc *DaemonSetsController) updateDaemonSetStatus(ds *extensions.DaemonSet)
 	nodeToDaemonPods, err := dsc.getNodesToDaemonPods(ds)
 	if err != nil {
 		glog.Errorf("Error getting node to daemon pod mapping for daemon set %+v: %v", ds, err)
+		return
 	}
 
 	nodeList, err := dsc.nodeStore.List()
 	if err != nil {
 		glog.Errorf("Couldn't get list of nodes when updating daemon set %+v: %v", ds, err)
+		return
 	}
 
 	var desiredNumberScheduled, currentNumberScheduled, numberMisscheduled int
 	for _, node := range nodeList.Items {
 		shouldRun := dsc.nodeShouldRunDaemonPod(&node, ds)
 
-		numDaemonPods := len(nodeToDaemonPods[node.Name])
-
-		if shouldRun && numDaemonPods > 0 {
-			currentNumberScheduled++
-		}
+		scheduled := len(nodeToDaemonPods[node.Name]) > 0
 
 		if shouldRun {
 			desiredNumberScheduled++
-		}
-
-		if !shouldRun && numDaemonPods > 0 {
-			numberMisscheduled++
+			if scheduled {
+				currentNumberScheduled++
+			}
+		} else {
+			if scheduled {
+				numberMisscheduled++
+			}
 		}
 	}
 

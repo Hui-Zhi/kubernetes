@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -273,7 +273,6 @@ func (obj NotAnAPIObject) SetGroupVersionKind(gvk *unversioned.GroupVersionKind)
 func defaultContentConfig() ContentConfig {
 	return ContentConfig{
 		GroupVersion:         testapi.Default.GroupVersion(),
-		Codec:                testapi.Default.Codec(),
 		NegotiatedSerializer: testapi.Default.NegotiatedSerializer(),
 	}
 }
@@ -1086,7 +1085,7 @@ func TestDoRequestNewWayFile(t *testing.T) {
 		t.Errorf("Expected: %#v, got %#v", expectedObj, obj)
 	}
 	if wasCreated {
-		t.Errorf("expected object was not created")
+		t.Errorf("expected object was created")
 	}
 	tmpStr := string(reqBodyExpected)
 	requestURL := testapi.Default.ResourcePathWithPrefix("foo/bar/baz", "", "", "")

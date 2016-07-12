@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,8 +61,22 @@ func (list SortableResourceQuotas) Less(i, j int) bool {
 	return list[i].Name < list[j].Name
 }
 
+type SortableVolumeMounts []api.VolumeMount
+
+func (list SortableVolumeMounts) Len() int {
+	return len(list)
+}
+
+func (list SortableVolumeMounts) Swap(i, j int) {
+	list[i], list[j] = list[j], list[i]
+}
+
+func (list SortableVolumeMounts) Less(i, j int) bool {
+	return list[i].MountPath < list[j].MountPath
+}
+
 // SortedQoSResourceNames returns the sorted resource names of a QoS list.
-func SortedQoSResourceNames(list qos.QoSList) []api.ResourceName {
+func SortedQoSResourceNames(list qos.QOSList) []api.ResourceName {
 	resources := make([]api.ResourceName, 0, len(list))
 	for res := range list {
 		resources = append(resources, res)

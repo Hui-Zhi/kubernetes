@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -147,12 +147,7 @@ func defaultPredicates() sets.String {
 		factory.RegisterFitPredicate("GeneralPredicates", predicates.GeneralPredicates),
 
 		// Fit is determined based on whether a pod can tolerate all of the node's taints
-		factory.RegisterFitPredicateFactory(
-			"PodToleratesNodeTaints",
-			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewTolerationMatchPredicate(args.NodeInfo)
-			},
-		),
+		factory.RegisterFitPredicate("PodToleratesNodeTaints", predicates.PodToleratesNodeTaints),
 
 		// Fit is determined by node memory pressure condition.
 		factory.RegisterFitPredicate("CheckNodeMemoryPressure", predicates.CheckNodeMemoryPressurePredicate),
@@ -175,23 +170,7 @@ func defaultPriorities() sets.String {
 				Weight: 1,
 			},
 		),
-		factory.RegisterPriorityConfigFactory(
-			"NodeAffinityPriority",
-			factory.PriorityConfigFactory{
-				Function: func(args factory.PluginFactoryArgs) algorithm.PriorityFunction {
-					return priorities.NewNodeAffinityPriority(args.NodeLister)
-				},
-				Weight: 1,
-			},
-		),
-		factory.RegisterPriorityConfigFactory(
-			"TaintTolerationPriority",
-			factory.PriorityConfigFactory{
-				Function: func(args factory.PluginFactoryArgs) algorithm.PriorityFunction {
-					return priorities.NewTaintTolerationPriority(args.NodeLister)
-				},
-				Weight: 1,
-			},
-		),
+		factory.RegisterPriorityFunction("NodeAffinityPriority", priorities.CalculateNodeAffinityPriority, 1),
+		factory.RegisterPriorityFunction("TaintTolerationPriority", priorities.ComputeTaintTolerationPriority, 1),
 	)
 }

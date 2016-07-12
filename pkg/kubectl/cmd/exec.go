@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/golang/glog"
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/restclient"
@@ -35,16 +36,17 @@ import (
 	remotecommandserver "k8s.io/kubernetes/pkg/kubelet/server/remotecommand"
 )
 
-const (
-	exec_example = `# Get output from running 'date' from pod 123456-7890, using the first container by default
-kubectl exec 123456-7890 date
+var (
+	exec_example = dedent.Dedent(`
+		# Get output from running 'date' from pod 123456-7890, using the first container by default
+		kubectl exec 123456-7890 date
 	
-# Get output from running 'date' in ruby-container from pod 123456-7890
-kubectl exec 123456-7890 -c ruby-container date
+		# Get output from running 'date' in ruby-container from pod 123456-7890
+		kubectl exec 123456-7890 -c ruby-container date
 
-# Switch to raw terminal mode, sends stdin to 'bash' in ruby-container from pod 123456-7890
-# and sends stdout/stderr from 'bash' back to the client
-kubectl exec 123456-7890 -c ruby-container -i -t -- bash -il`
+		# Switch to raw terminal mode, sends stdin to 'bash' in ruby-container from pod 123456-7890
+		# and sends stdout/stderr from 'bash' back to the client
+		kubectl exec 123456-7890 -c ruby-container -i -t -- bash -il`)
 )
 
 func NewCmdExec(f *cmdutil.Factory, cmdIn io.Reader, cmdOut, cmdErr io.Writer) *cobra.Command {
@@ -57,7 +59,7 @@ func NewCmdExec(f *cmdutil.Factory, cmdIn io.Reader, cmdOut, cmdErr io.Writer) *
 	}
 	cmd := &cobra.Command{
 		Use:     "exec POD [-c CONTAINER] -- COMMAND [args...]",
-		Short:   "Execute a command in a container.",
+		Short:   "Execute a command in a container",
 		Long:    "Execute a command in a container.",
 		Example: exec_example,
 		Run: func(cmd *cobra.Command, args []string) {
