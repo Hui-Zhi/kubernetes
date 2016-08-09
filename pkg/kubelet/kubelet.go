@@ -53,6 +53,9 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/envvars"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/eviction"
+	"k8s.io/kubernetes/pkg/kubelet/gpu"
+	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/images"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
@@ -223,7 +226,6 @@ func NewMainKubelet(
 	reconcileCIDR bool,
 	maxPods int,
 	podsPerCore int,
-	nvidiaGPUs int,
 	dockerExecHandler dockertools.ExecHandler,
 	resolverConfig string,
 	cpuCFSQuota bool,
@@ -350,8 +352,8 @@ func NewMainKubelet(
 		nonMasqueradeCIDR:          nonMasqueradeCIDR,
 		reconcileCIDR:              reconcileCIDR,
 		maxPods:                    maxPods,
+		gpuPlugins:                 gpu.ProbeGPUPlugins(),
 		podsPerCore:                podsPerCore,
-		nvidiaGPUs:                 nvidiaGPUs,
 		syncLoopMonitor:            atomic.Value{},
 		resolverConfig:             resolverConfig,
 		cpuCFSQuota:                cpuCFSQuota,
@@ -425,6 +427,7 @@ func NewMainKubelet(
 			containerLogsDir,
 			osInterface,
 			klet.networkPlugin,
+			klet.gpuPlugins,
 			klet,
 			klet.httpClient,
 			dockerExecHandler,
@@ -551,6 +554,26 @@ func NewMainKubelet(
 	}
 	klet.AddPodSyncLoopHandler(activeDeadlineHandler)
 	klet.AddPodSyncHandler(activeDeadlineHandler)
+
+	// We only support NVIDIA GPU on Docker right now.
+	nvidiaGPUPlugin := klet.GetNvidiaGPUPlugin()
+	allPods, err := klet.containerRuntime.GetPods(true)
+	if err != nil {
+		dm := klet.containerRuntime.(*dockertools.DockerManager)
+		if dm != nil {
+			for _, pod := range allPods {
+				for _, containerItem := range pod.Containers {
+					gpuMappingPaths, err := dm.GetNvidiaGPUMappingOnHost(containerItem)
+					if err != nil {
+						return nil, err
+					}
+					if gpuMappingPaths != nil {
+						nvidiaGPUPlugin.UpdateGPUByContainerName(containerItem.Name, gpuMappingPaths)
+					}
+				}
+			}
+		}
+	}
 
 	// apply functional Option's
 	for _, opt := range kubeOptions {
@@ -747,8 +770,8 @@ type Kubelet struct {
 	// Maximum Number of Pods which can be run by this Kubelet
 	maxPods int
 
-	// Number of NVIDIA GPUs on this node
-	nvidiaGPUs int
+	// GPU plugins.
+	gpuPlugins []gputypes.GPUPlugin
 
 	// Monitor Kubelet's sync loop
 	syncLoopMonitor atomic.Value
@@ -1192,6 +1215,32 @@ func (kl *Kubelet) GeneratePodHostNameAndDomain(pod *api.Pod) (string, string, e
 	return hostname, hostDomain, nil
 }
 
+func (kl *Kubelet) GetDevicesMapping(container *api.Container) []kubecontainer.DeviceInfo {
+	// Now we only support the limit command for GPU.
+	nvidiaGPULimits := container.Resources.Limits.NvidiaGPU()
+
+	if nvidiaGPULimits == nil || nvidiaGPULimits.Value() <= 0 {
+		return nil
+	}
+
+	var devices []kubecontainer.DeviceInfo
+	nvidiaGPUPlugin := kl.GetNvidiaGPUPlugin()
+	if nvidiaGPUPlugin != nil {
+		nvidiaGPUPaths := nvidiaGPUPlugin.AllocateGPU(container.Name, int(nvidiaGPULimits.Value()))
+
+		if nvidiaGPUPaths != nil {
+			devices = []kubecontainer.DeviceInfo{{PathOnHost: nvidiagpuutil.NvidiaDeviceCtl, PathInContainer: nvidiagpuutil.NvidiaDeviceCtl, Permissions: "mrw"},
+				{PathOnHost: nvidiagpuutil.NvidiaDeviceUVM, PathInContainer: nvidiagpuutil.NvidiaDeviceUVM, Permissions: "mrw"}}
+
+			for _, path := range nvidiaGPUPaths {
+				devices = append(devices, kubecontainer.DeviceInfo{PathOnHost: path, PathInContainer: path, Permissions: "mrw"})
+			}
+		}
+	}
+
+	return devices
+}
+
 // GenerateRunContainerOptions generates the RunContainerOptions, which can be used by
 // the container runtime to set parameters for launching a container.
 func (kl *Kubelet) GenerateRunContainerOptions(pod *api.Pod, container *api.Container, podIP string) (*kubecontainer.RunContainerOptions, error) {
@@ -1238,6 +1287,8 @@ func (kl *Kubelet) GenerateRunContainerOptions(pod *api.Pod, container *api.Cont
 	if err != nil {
 		return nil, err
 	}
+
+	opts.Devices = kl.GetDevicesMapping(container)
 
 	return opts, nil
 }
@@ -2494,6 +2545,16 @@ func (kl *Kubelet) updateCloudProviderFromMachineInfo(node *api.Node, info *cadv
 }
 
 type byImageSize []kubecontainer.Image
+
+func (kl *Kubelet) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
+	for _, itemPlugin := range kl.gpuPlugins {
+		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
+}
 
 // Sort from max to min
 func (a byImageSize) Less(i, j int) bool {

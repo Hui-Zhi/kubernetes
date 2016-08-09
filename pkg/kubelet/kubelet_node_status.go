@@ -343,6 +343,14 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 	// TODO: Post NotReady if we cannot get MachineInfo from cAdvisor. This needs to start
 	// cAdvisor locally, e.g. for test-cmd.sh, and in integration test.
 	info, err := kl.GetCachedMachineInfo()
+
+	nvidiaGPUCount := 0
+
+	nvidiaGPUPlugin := kl.GetNvidiaGPUPlugin()
+	if nvidiaGPUPlugin != nil {
+		nvidiaGPUCount = nvidiaGPUPlugin.Capacity()
+	}
+
 	if err != nil {
 		// TODO(roberthbailey): This is required for test-cmd.sh to pass.
 		// See if the test should be updated instead.
@@ -350,7 +358,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 			api.ResourceCPU:       *resource.NewMilliQuantity(0, resource.DecimalSI),
 			api.ResourceMemory:    resource.MustParse("0Gi"),
 			api.ResourcePods:      *resource.NewQuantity(int64(kl.maxPods), resource.DecimalSI),
-			api.ResourceNvidiaGPU: *resource.NewQuantity(int64(kl.nvidiaGPUs), resource.DecimalSI),
+			api.ResourceNvidiaGPU: *resource.NewQuantity(int64(nvidiaGPUCount), resource.DecimalSI),
 		}
 		glog.Errorf("Error getting machine info: %v", err)
 	} else {
@@ -365,7 +373,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *api.Node) {
 				int64(kl.maxPods), resource.DecimalSI)
 		}
 		node.Status.Capacity[api.ResourceNvidiaGPU] = *resource.NewQuantity(
-			int64(kl.nvidiaGPUs), resource.DecimalSI)
+			int64(nvidiaGPUCount), resource.DecimalSI)
 		if node.Status.NodeInfo.BootID != "" &&
 			node.Status.NodeInfo.BootID != info.BootID {
 			// TODO: This requires a transaction, either both node status is updated

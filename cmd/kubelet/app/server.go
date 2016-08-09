@@ -240,7 +240,6 @@ func UnsecuredKubeletConfig(s *options.KubeletServer) (*KubeletConfig, error) {
 		MaxOpenFiles:                 uint64(s.MaxOpenFiles),
 		MaxPerPodContainerCount:      int(s.MaxPerPodContainerCount),
 		MaxPods:                      int(s.MaxPods),
-		NvidiaGPUs:                   int(s.NvidiaGPUs),
 		MinimumGCAge:                 s.MinimumGCAge.Duration,
 		Mounter:                      mounter,
 		NetworkPluginName:            s.NetworkPluginName,
@@ -599,7 +598,6 @@ func SimpleKubelet(client *clientset.Clientset,
 		MaxOpenFiles:              1024,
 		MaxPerPodContainerCount:   2,
 		MaxPods:                   maxPods,
-		NvidiaGPUs:                0,
 		MinimumGCAge:              minimumGCAge,
 		Mounter:                   mount.New(),
 		NodeStatusUpdateFrequency: nodeStatusUpdateFrequency,
@@ -835,7 +833,6 @@ type KubeletConfig struct {
 	NodeLabels                     map[string]string
 	NodeStatusUpdateFrequency      time.Duration
 	NonMasqueradeCIDR              string
-	NvidiaGPUs                     int
 	OOMAdjuster                    *oom.OOMAdjuster
 	OSInterface                    kubecontainer.OSInterface
 	PodCIDR                        string
@@ -953,7 +950,6 @@ func CreateAndInitKubelet(kc *KubeletConfig) (k KubeletBootstrap, pc *config.Pod
 		kc.ReconcileCIDR,
 		kc.MaxPods,
 		kc.PodsPerCore,
-		kc.NvidiaGPUs,
 		kc.DockerExecHandler,
 		kc.ResolverConfig,
 		kc.CPUCFSQuota,

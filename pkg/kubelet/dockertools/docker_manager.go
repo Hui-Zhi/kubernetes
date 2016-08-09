@@ -46,6 +46,8 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
+	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	"k8s.io/kubernetes/pkg/kubelet/images"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
@@ -140,6 +142,9 @@ type DockerManager struct {
 	// Network plugin.
 	networkPlugin network.NetworkPlugin
 
+	// GPU Plugins.
+	gpuPlugins []gputypes.GPUPlugin
+
 	// Health check results.
 	livenessManager proberesults.Manager
 
@@ -212,6 +217,7 @@ func NewDockerManager(
 	containerLogsDir string,
 	osInterface kubecontainer.OSInterface,
 	networkPlugin network.NetworkPlugin,
+	gpuPlugins []gputypes.GPUPlugin,
 	runtimeHelper kubecontainer.RuntimeHelper,
 	httpClient types.HttpGetter,
 	execHandler ExecHandler,
@@ -245,6 +251,7 @@ func NewDockerManager(
 		containerRefManager:    containerRefManager,
 		os:                     osInterface,
 		machineInfo:            machineInfo,
+		gpuPlugins:             gpuPlugins,
 		podInfraContainerImage: podInfraContainerImage,
 		dockerPuller:           newDockerPuller(client, qps, burst),
 		dockerRoot:             dockerRoot,
@@ -545,6 +552,41 @@ func makePortsAndBindings(portMappings []kubecontainer.PortMapping) (map[dockern
 	return exposedPorts, portBindings
 }
 
+func (dm *DockerManager) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
+	for _, itemPlugin := range dm.gpuPlugins {
+		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
+}
+
+func (dm *DockerManager) GetNvidiaGPUMappingOnHost(container *kubecontainer.Container) ([]string, error) {
+	containerJSON, err := dm.client.InspectContainer(container.ID.ID)
+
+	devices := containerJSON.HostConfig.Devices
+
+	if devices == nil {
+		return nil, err
+	}
+
+	nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+
+	if nvidiaGPUPlugin == nil {
+		return nil, err
+	}
+
+	var nvidiaGPUPaths []string
+	for _, device := range devices {
+		if nvidiaGPUPlugin.Valid(device.PathOnHost) {
+			nvidiaGPUPaths = append(nvidiaGPUPaths, device.PathOnHost)
+		}
+	}
+
+	return nvidiaGPUPaths, err
+}
+
 func (dm *DockerManager) runContainer(
 	pod *api.Pod,
 	container *api.Container,
@@ -587,7 +629,6 @@ func (dm *DockerManager) runContainer(
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	cpuRequest := container.Resources.Requests.Cpu()
 	cpuLimit := container.Resources.Limits.Cpu()
-	nvidiaGPULimit := container.Resources.Limits.NvidiaGPU()
 	var cpuShares int64
 	// If request is not specified, but limit is, we want request to default to limit.
 	// API server does this for new containers, but we repeat this logic in Kubelet
@@ -600,15 +641,12 @@ func (dm *DockerManager) runContainer(
 		cpuShares = milliCPUToShares(cpuRequest.MilliValue())
 	}
 	var devices []dockercontainer.DeviceMapping
-	if nvidiaGPULimit.Value() != 0 {
-		// Experimental. For now, we hardcode /dev/nvidia0 no matter what the user asks for
-		// (we only support one device per node).
-		devices = []dockercontainer.DeviceMapping{
-			{"/dev/nvidia0", "/dev/nvidia0", "mrw"},
-			{"/dev/nvidiactl", "/dev/nvidiactl", "mrw"},
-			{"/dev/nvidia-uvm", "/dev/nvidia-uvm", "mrw"},
-		}
+	for _, device := range opts.Devices {
+		devices = append(devices, dockercontainer.DeviceMapping{PathOnHost: device.PathOnHost,
+			PathInContainer:   device.PathInContainer,
+			CgroupPermissions: device.Permissions})
 	}
+
 	podHasSELinuxLabel := pod.Spec.SecurityContext != nil && pod.Spec.SecurityContext.SELinuxOptions != nil
 	binds := makeMountBindings(opts.Mounts, podHasSELinuxLabel)
 	// The reason we create and mount the log file in here (not in kubelet) is because
@@ -698,8 +736,19 @@ func (dm *DockerManager) runContainer(
 	securityContextProvider.ModifyContainerConfig(pod, container, dockerOpts.Config)
 	securityContextProvider.ModifyHostConfig(pod, container, dockerOpts.HostConfig, supplementalGids)
 	createResp, err := dm.client.CreateContainer(dockerOpts)
+
+	nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+
 	if err != nil {
 		dm.recorder.Eventf(ref, api.EventTypeWarning, events.FailedToCreateContainer, "Failed to create docker container %q of pod %q with error: %v", container.Name, format.Pod(pod), err)
+		if nvidiaGPUPlugin != nil {
+			var nvidiaPaths []string
+			for _, devices := range opts.Devices {
+				nvidiaPaths = append(nvidiaPaths, devices.PathOnHost)
+			}
+			nvidiaGPUPlugin.FreeGPUByPaths(nvidiaPaths)
+		}
+
 		return kubecontainer.ContainerID{}, err
 	}
 	if len(createResp.Warnings) != 0 {
@@ -710,6 +759,14 @@ func (dm *DockerManager) runContainer(
 	if err = dm.client.StartContainer(createResp.ID); err != nil {
 		dm.recorder.Eventf(ref, api.EventTypeWarning, events.FailedToStartContainer,
 			"Failed to start container with docker id %v with error: %v", utilstrings.ShortenString(createResp.ID, 12), err)
+		if nvidiaGPUPlugin != nil {
+			var nvidiaPaths []string
+			for _, devices := range opts.Devices {
+				nvidiaPaths = append(nvidiaPaths, devices.PathOnHost)
+			}
+			nvidiaGPUPlugin.FreeGPUByPaths(nvidiaPaths)
+		}
+
 		return kubecontainer.ContainerID{}, err
 	}
 	dm.recorder.Eventf(ref, api.EventTypeNormal, events.StartedContainer, "Started container with docker id %v", utilstrings.ShortenString(createResp.ID, 12))
@@ -1439,6 +1496,14 @@ func (dm *DockerManager) killContainer(containerID kubecontainer.ContainerID, co
 		dm.recorder.Event(ref, api.EventTypeNormal, events.KillingContainer, message)
 		dm.containerRefManager.ClearRef(containerID)
 	}
+
+	if err == nil {
+		nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+		if nvidiaGPUPlugin != nil {
+			nvidiaGPUPlugin.FreeGPUByContainerName(container.Name)
+		}
+	}
+
 	return err
 }
 
