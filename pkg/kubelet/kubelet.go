@@ -93,6 +93,8 @@ import (
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
+	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
 )
 
 const (
@@ -443,7 +445,6 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 		nonMasqueradeCIDR: kubeCfg.NonMasqueradeCIDR,
 		maxPods:           int(kubeCfg.MaxPods),
 		podsPerCore:       int(kubeCfg.PodsPerCore),
-		nvidiaGPUs:        int(kubeCfg.NvidiaGPUs),
 		syncLoopMonitor:   atomic.Value{},
 		resolverConfig:    kubeCfg.ResolverConfig,
 		cpuCFSQuota:       kubeCfg.CPUCFSQuota,
@@ -988,8 +989,8 @@ type Kubelet struct {
 	// Maximum Number of Pods which can be run by this Kubelet
 	maxPods int
 
-	// Number of NVIDIA GPUs on this node
-	nvidiaGPUs int
+	// GPU Plugins
+	gpuPlugins []gputypes.GPUPlugin
 
 	// Monitor Kubelet's sync loop
 	syncLoopMonitor atomic.Value
@@ -1213,6 +1214,16 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 	if err := kl.evictionManager.Start(kl, kl.getActivePods, evictionMonitoringPeriod); err != nil {
 		kl.runtimeState.setInternalError(fmt.Errorf("failed to start eviction manager %v", err))
 	}
+}
+
+func (kl *Kubelet) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
+	for _, itemPlugin := range kl.gpuPlugins {
+		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
 }
 
 // Run starts the kubelet reacting to config updates

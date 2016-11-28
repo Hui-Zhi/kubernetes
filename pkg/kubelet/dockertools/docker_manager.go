@@ -73,6 +73,9 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 	utilstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/util/term"
+	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+	gpus "k8s.io/kubernetes/pkg/kubelet/gpu"
+	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
 const (
@@ -172,6 +175,9 @@ type DockerManager struct {
 
 	// If true, enforce container cpu limits with CFS quota support
 	cpuCFSQuota bool
+
+	// GPU Plugins.
+	gpuPlugins []gputypes.GPUPlugin
 
 	// Container GC manager
 	containerGC *containerGC
@@ -289,6 +295,7 @@ func NewDockerManager(
 	dm.runner = lifecycle.NewHandlerRunner(httpClient, cmdRunner, dm)
 	dm.imagePuller = images.NewImageManager(kubecontainer.FilterEventRecorder(recorder), dm, imageBackOff, serializeImagePulls, qps, burst)
 	dm.containerGC = NewContainerGC(client, podGetter, containerLogsDir)
+	dm.gpuPlugins = gpus.ProbeGPUPlugins()
 
 	dm.versionCache = cache.NewObjectCache(
 		func() (interface{}, error) {
@@ -303,6 +310,16 @@ func NewDockerManager(
 	}
 
 	return dm
+}
+
+func (dm *DockerManager) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
+	for _, itemPlugin := range dm.gpuPlugins {
+		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
 }
 
 // GetContainerLogs returns logs of a specific container. By
