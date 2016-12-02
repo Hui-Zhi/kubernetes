@@ -95,6 +95,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
+	"k8s.io/kubernetes/pkg/kubelet/gpu"
 )
 
 const (
@@ -444,6 +445,7 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 		writer:            kubeDeps.Writer,
 		nonMasqueradeCIDR: kubeCfg.NonMasqueradeCIDR,
 		maxPods:           int(kubeCfg.MaxPods),
+		gpuPlugins:	   gpu.ProbeGPUPlugins(),
 		podsPerCore:       int(kubeCfg.PodsPerCore),
 		syncLoopMonitor:   atomic.Value{},
 		resolverConfig:    kubeCfg.ResolverConfig,
