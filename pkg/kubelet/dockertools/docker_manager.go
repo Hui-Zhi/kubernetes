@@ -74,7 +74,6 @@ import (
 	utilstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/util/term"
 	nvidiagpuutil "k8s.io/kubernetes/pkg/kubelet/gpu/nvidia/util"
-	gpus "k8s.io/kubernetes/pkg/kubelet/gpu"
 	gputypes "k8s.io/kubernetes/pkg/kubelet/gpu/types"
 )
 
@@ -236,6 +235,7 @@ func NewDockerManager(
 	oomAdjuster *oom.OOMAdjuster,
 	procFs procfs.ProcFSInterface,
 	cpuCFSQuota bool,
+	gpuPlugins []gputypes.GPUPlugin,
 	imageBackOff *flowcontrol.Backoff,
 	serializeImagePulls bool,
 	enableCustomMetrics bool,
@@ -295,7 +295,7 @@ func NewDockerManager(
 	dm.runner = lifecycle.NewHandlerRunner(httpClient, cmdRunner, dm)
 	dm.imagePuller = images.NewImageManager(kubecontainer.FilterEventRecorder(recorder), dm, imageBackOff, serializeImagePulls, qps, burst)
 	dm.containerGC = NewContainerGC(client, podGetter, containerLogsDir)
-	dm.gpuPlugins = gpus.ProbeGPUPlugins()
+	dm.gpuPlugins = gpuPlugins
 
 	dm.versionCache = cache.NewObjectCache(
 		func() (interface{}, error) {
@@ -310,16 +310,6 @@ func NewDockerManager(
 	}
 
 	return dm
-}
-
-func (dm *DockerManager) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
-	for _, itemPlugin := range dm.gpuPlugins {
-		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
-			return itemPlugin
-		}
-	}
-
-	return nil
 }
 
 // GetContainerLogs returns logs of a specific container. By
@@ -601,6 +591,43 @@ func makePortsAndBindings(portMappings []kubecontainer.PortMapping) (map[dockern
 	}
 	return exposedPorts, portBindings
 }
+
+func (dm *DockerManager) GetNvidiaGPUPlugin() gputypes.GPUPlugin {
+	for _, itemPlugin := range dm.gpuPlugins {
+		if itemPlugin.Vendor() == nvidiagpuutil.Vendor {
+			return itemPlugin
+		}
+	}
+
+	return nil
+}
+
+
+func (dm *DockerManager) GetNvidiaGPUMappingOnHost(container *kubecontainer.Container) ([]string, error) {
+	containerJSON, err := dm.client.InspectContainer(container.ID.ID)
+
+	devices := containerJSON.HostConfig.Devices
+
+	if devices == nil {
+		return nil, err
+	}
+
+	nvidiaGPUPlugin := dm.GetNvidiaGPUPlugin()
+
+	if nvidiaGPUPlugin == nil {
+		return nil, err
+	}
+
+	var nvidiaGPUPaths []string
+	for _, device := range devices {
+		if nvidiaGPUPlugin.Valid(device.PathOnHost) {
+			nvidiaGPUPaths = append(nvidiaGPUPaths, device.PathOnHost)
+		}
+	}
+
+	return nvidiaGPUPaths, err
+}
+
 
 func (dm *DockerManager) runContainer(
 	pod *v1.Pod,

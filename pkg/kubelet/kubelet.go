@@ -635,6 +635,7 @@ func NewMainKubelet(kubeCfg *componentconfig.KubeletConfiguration, kubeDeps *Kub
 				kubeDeps.OOMAdjuster,
 				procFs,
 				klet.cpuCFSQuota,
+				klet.gpuPlugins,
 				imageBackOff,
 				kubeCfg.SerializeImagePulls,
 				kubeCfg.EnableCustomMetrics,
