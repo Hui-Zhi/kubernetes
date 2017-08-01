@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"strconv"
 
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
@@ -99,9 +100,9 @@ func (kl *Kubelet) makeDevices(pod *v1.Pod, container *v1.Container) ([]kubecont
 		return nil, err
 	}
 	var devices []kubecontainer.DeviceInfo
-	for _, path := range nvidiaGPUPaths {
+	for devNo, path := range nvidiaGPUPaths {
 		// Devices have to be mapped one to one because of nvidia CUDA library requirements.
-		devices = append(devices, kubecontainer.DeviceInfo{PathOnHost: path, PathInContainer: path, Permissions: "mrw"})
+		devices = append(devices, kubecontainer.DeviceInfo{PathOnHost: path, PathInContainer: "/dev/nvidia" + strconv.Itoa(devNo), Permissions: "mrw"})
 	}
 
 	return devices, nil
